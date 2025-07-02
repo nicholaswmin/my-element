@@ -1,0 +1,16 @@
+{
+  "name": "poly-auth-behavior",
+  "version": "1.0.0",
+  "description": "HttpBehavior for Polymer 1.x with unified auth and HTTP handling",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "express": "^5.1.0",
+    "jsdom": "^26.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
