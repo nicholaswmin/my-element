@@ -1,14 +1,15 @@
 // Mock server mimicking BAPI - uses exact Bitpaper endpoints
 
 import express from 'express'
+import jwt from 'jsonwebtoken'
 
 export function createTestServer() {
   const app = express()
   app.use(express.json())
   
-  let server
-  let port
+  
   const requests = []
+  const JWT_SECRET = 'test-jwt-secret-key'
   
   app.use((req, res, next) => {
     requests.push({
@@ -20,31 +21,56 @@ export function createTestServer() {
     next()
   })
   
+  // Helper to create real JWT tokens matching BAPI format
+  const createJWTToken = (userId, expiresIn = '30d') => {
+    return jwt.sign(
+      { 
+        sub: userId,  // BAPI uses 'sub' claim for user ID
+        iat: Math.floor(Date.now() / 1000)
+      },
+      JWT_SECRET,
+      { 
+        expiresIn,
+        algorithm: 'HS256'  // Using HS256 instead of RS512 for testing simplicity
+      }
+    )
+  }
+
+  const createRefreshToken = (userId) => {
+    // BAPI uses 256-character random hex strings for refresh tokens
+    return Array.from({ length: 64 }, () => 
+      Math.floor(Math.random() * 16).toString(16)
+    ).join('')
+  }
+
   // Helper to create user response
-  const createUserResponse = (email = 'test@example.com', isRefresh = false) => ({
-    id_user: '00000000-0000-0000-0000-000000000123',
-    name: 'Test User',
-    email: email,
-    email_verified: true,
-    created_at: '2023-01-01T00:00:00.000Z',
-    updated_at: '2023-01-01T00:00:00.000Z',
-    billing_email: null,
-    billing_address: null,
-    parent_user_id: null,
-    has_trialed: false,
-    is_admin: false,
-    api_token: null,
-    api_test_token: null,
-    editor_preferences: {},
-    public_preferences: {},
-    network: 'email',
-    is_child: false,
-    subscription: null,
-    tokens: {
-      access: isRefresh ? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.new.' + Date.now() : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.access.' + Date.now(),
-      refresh: isRefresh ? 'new-refresh-' + Date.now() : 'refresh-token-' + Date.now()
+  const createUserResponse = (email = 'test@example.com', isRefresh = false) => {
+    const userId = '00000000-0000-0000-0000-000000000123'
+    return {
+      id_user: userId,
+      name: 'Test User',
+      email: email,
+      email_verified: true,
+      created_at: '2023-01-01T00:00:00.000Z',
+      updated_at: '2023-01-01T00:00:00.000Z',
+      billing_email: null,
+      billing_address: null,
+      parent_user_id: null,
+      has_trialed: false,
+      is_admin: false,
+      api_token: null,
+      api_test_token: null,
+      editor_preferences: {},
+      public_preferences: {},
+      network: 'email',
+      is_child: false,
+      subscription: null,
+      tokens: {
+        access: createJWTToken(userId, isRefresh ? '30d' : '30d'),
+        refresh: createRefreshToken(userId)
+      }
     }
-  })
+  }
   
   // Signup endpoint - matches BAPI exactly
   app.post('/api/user/signup', (req, res) => {
@@ -167,7 +193,7 @@ export function createTestServer() {
     res.status(201).json(createUserResponse('test@example.com', true))
   })
   
-  // Middleware to validate auth like BAPI
+  // Middleware to validate auth like BAPI with real JWT validation
   const validateAuth = (req, res, next) => {
     const authHeader = req.headers.authorization
     
@@ -181,7 +207,7 @@ export function createTestServer() {
     
     const token = authHeader.substring(7)
     
-    // Simulate expired token - BAPI returns 401
+    // Handle legacy string tokens for backward compatibility
     if (token.includes('old-token') || token.includes('expired-token')) {
       return res.status(401).json({
         statusCode: 401,
@@ -190,7 +216,6 @@ export function createTestServer() {
       })
     }
     
-    // Invalid/malformed token returns 403
     if (token === 'invalid-token') {
       return res.status(403).json({
         message: 'Forbidden',
@@ -198,9 +223,30 @@ export function createTestServer() {
       })
     }
     
-    // Token is valid
-    req.user = { id: '00000000-0000-0000-0000-000000000123' }
-    next()
+    // Real JWT validation
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET)
+      req.user = { id: decoded.sub }  // BAPI uses 'sub' claim
+      next()
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          statusCode: 401,
+          message: 'access_token_expired',
+          error: 'Unauthorized'
+        })
+      } else if (error.name === 'JsonWebTokenError') {
+        return res.status(403).json({
+          message: 'Forbidden',
+          statusCode: 403
+        })
+      } else {
+        return res.status(500).json({
+          message: 'Internal Server Error',
+          statusCode: 500
+        })
+      }
+    }
   }
   
   // Generic test endpoint
@@ -442,29 +488,54 @@ export function createTestServer() {
     })
   })
   
-  return {
+  const serverObj = {
+    host: null,
+    _server: null,
     async start() {
       return new Promise((resolve) => {
-        server = app.listen(0, () => {
-          port = server.address().port
-          resolve(`http://localhost:${port}`)
+        this._server = app.listen(0, () => {
+          const { port } = this._server.address()
+          this.host = `http://localhost:${port}`
+          resolve(this.host)
         })
       })
     },
-    
     async stop() {
-      if (server) {
-        return new Promise((resolve) => {
-          server.close(() => {
-            server = null
-            port = null
+      if (!this._server) return
+      return new Promise((resolve, reject) => {
+        this._server.close((err) => {
+          if (err) {
+            reject(err)
+          } else {
             resolve()
-          })
+          }
         })
-      }
+      })
+    },
+    getRequests: () => requests,
+    clearRequests: () => requests.length = 0,
+    
+    // Utility functions for creating tokens in tests
+    createExpiredToken: (userId = '00000000-0000-0000-0000-000000000123') => {
+      return jwt.sign(
+        { 
+          sub: userId,  // BAPI uses 'sub' claim
+          iat: Math.floor(Date.now() / 1000) - 3600, // 1 hour ago
+          exp: Math.floor(Date.now() / 1000) - 60    // expired 1 minute ago
+        },
+        JWT_SECRET,
+        { algorithm: 'HS256' }
+      )
     },
     
-    getRequests: () => requests,
-    clearRequests: () => requests.length = 0
+    createValidToken: (userId = '00000000-0000-0000-0000-000000000123', expiresIn = '30m') => {
+      return createJWTToken(userId, expiresIn)
+    },
+    
+    createMalformedToken: () => {
+      return 'invalid.jwt.token'
+    }
   }
+  
+  return serverObj
 }

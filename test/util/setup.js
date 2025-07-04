@@ -86,13 +86,7 @@ export function createPolymerBase() {
 
 // Create behavior instance with proper initialization
 export function createBehaviorInstance(behavior, initialProps = {}) {
-  const instance = Object.assign(
-    {},
-    createPolymerBase(),
-    behavior,
-    initialProps
-  )
-  
+  const instance = Object.assign({}, createPolymerBase(), behavior, initialProps)
   // Initialize properties with default values
   if (behavior.properties) {
     Object.keys(behavior.properties).forEach(prop => {

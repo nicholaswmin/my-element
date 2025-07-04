@@ -185,7 +185,7 @@ globalThis.HttpBehavior = {
           }
         },
 
-        paper: {
+            paper: {
           save: function(data) {
             component.set('loading', true);
             component.set('lastError', null);
@@ -590,7 +590,9 @@ globalThis.HttpBehavior = {
     try {
       return JSON.parse(window.localStorage.getItem('loggedInUser') || '{}');
     } catch (e) {
-      console.warn('Failed to parse stored user:', e);
+      if (process.env.NODE_ENV.trim().toLowerCase().includes('test'))
+        console.warn('Failed to parse stored user:', e);
+
       return {};
     }
   },

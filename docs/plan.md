@@ -94,7 +94,7 @@ test('API pattern usage', async t => {
     todo: 'Implement api function that returns bound actions'
   }, async t => {
     const component = createMockComponent();
-    const api = behavior.api(component);
+    const api = behavior.service(component);
     
     t.assert.ok(api.auth);
     t.assert.ok(api.paper);
@@ -109,7 +109,7 @@ test('service multiplexing', async t => {
   await t.test('fetch method selects service by name', {
     todo: 'Implement fetch(serviceName, path) method'
   }, async t => {
-    const api = behavior.api(component);
+    const api = behavior.service(component);
     
     // Should use bapi service
     await api.fetch('bapi', '/user/papers');
@@ -131,7 +131,7 @@ await service.auth.login(credentials);
 
 **After:**
 ```javascript
-await behavior.api(component).auth.login(credentials);
+await behavior.service(component).auth.login(credentials);
 ```
 
 ### 4.2 Mark Implementation Dependencies as TODO
@@ -141,7 +141,7 @@ All tests depending on hardcoded implementation get TODO markers:
 await t.test('user login updates behavior state', {
   todo: 'Requires external auth.login action implementation'
 }, async t => {
-  await behavior.api(component).auth.login({
+  await behavior.service(component).auth.login({
     email: 'test@example.com',
     password: 'password'
   });
@@ -168,7 +168,7 @@ Mark missing auth methods as TODOs:
 await t.test('user registers new account', {
   todo: 'Add register method to external auth actions'
 }, async t => {
-  await behavior.api(component).auth.register({
+  await behavior.service(component).auth.register({
     email: 'new@example.com',
     password: 'password',
     name: 'New User'

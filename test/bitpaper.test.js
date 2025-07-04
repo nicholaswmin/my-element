@@ -25,11 +25,11 @@ test('HttpBehavior endpoint integration', async t => {
   
   t.beforeEach(() => {
     window.localStorage.clear()
+
     behavior = createBehaviorInstance(globalThis.HttpBehavior)
     behavior.services = { bapi: { baseURL } }
     behavior.loggedInUser = { 
-      id_user: '123',
-      tokens: { access: 'valid-token' } 
+      id_user: '123', tokens: { access: server.createValidToken() } 
     }
     behavior._buildService()
   })

@@ -124,6 +124,45 @@ Tests use `bapi` by convention, but any service name would work.
 - Component migration from auth-ajax (10 components)
 - Removal of legacy auth elements and pages
 
+## Node.js Test Style Guide
+
+Tests use Node.js test runner with domain-driven semantic grouping:
+
+### Test Organization
+- **Semantic grouping**: Tests read like specifications using domain language
+- **Hierarchical structure**: `test() > t.test() > t.test()` mirrors user scenarios
+- **Domain titles**: Use real-world events, not technical implementation details
+
+```javascript
+test('HttpBehavior external configuration', async t => {
+  await t.test('accepts external API configuration', async t => {
+    await t.todo('api property: accepts external configuration', async t => {
+      // Test implementation
+    })
+  })
+})
+```
+
+### Test Guidelines
+- **Flexible assertions**: Use `t.assert.partialDeepStrictEqual()` for extensible objects
+- **Array access**: Use `.at(0)` not `[0]` for better error messages  
+- **Mock timers**: Use `t.mock.timers` for deterministic time-dependent tests
+- **Setup/teardown**: Use `t.beforeEach()`/`t.afterEach()` to reduce boilerplate
+- **TODO tests**: Use `t.todo()` for red-green-refactor specification markers
+- **80-character limit**: Keep lines concise and readable
+- **Minimal imports**: Only import test runner and system under test
+
+### Test File Structure
+```
+test/
+├── config.test.js         # External configuration setup
+├── edges.test.js          # Edge cases & boundary scenarios  
+├── http-behavior.test.js  # Core behavior (auth, lifecycle)
+├── element.test.js        # Component integration mechanics
+├── bitpaper.test.js       # Real endpoint integration (minimal)
+└── routes.test.js         # URL building tests
+```
+
 ## Key Findings from Analysis
 
 - Only 2 whiteboard elements use reactive auth observers (app-whiteboard, object-sync)

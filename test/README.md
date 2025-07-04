@@ -1,25 +1,62 @@
 # HttpBehavior Tests  
 
-## Generic Tests  
+## Authentication Tests (auth/)
 
-Stay relevant to bitpaper-relevant structures like URL structures,  
-flows etc but **you must use generic** terms like "resource", "item", "user"  
+Complete authentication flow with concise, clear names:
 
-- `http-behavior.test.js` - Core behavior: auth, token refresh, service API  
-- `element.test.js` - Component state management and event firing  
-- `routes.test.js` - URL building and parameter substitution  
+- `session.test.js` - Session initialization on page load
+- `login.test.js` - Login authentication and endpoints  
+- `headers.test.js` - Authorization headers and BAPI compliance
+- `refresh.test.js` - Token refresh and expiration handling
+- `logout.test.js` - Logout and session cleanup
+- `storage.test.js` - localStorage persistence and validation
+- `integration.test.js` - Component integration and lifecycle
+
+## Core Behavior Tests
+
+Generic tests using terms like "resource", "item", "user":
+
+- `http-behavior.test.js` - Core HTTP behavior and error handling
+- `element.test.js` - Component state management and isolation  
+- `edges.test.js` - Edge cases and boundary scenarios
+- `config.test.js` - External configuration (comprehensive API pattern tests)
+- `routes.test.js` - URL building and service multiplexing
 - `server.test.js` - Mock server validation  
-- `util/setup.js` - JSDOM setup, mock components, test environment  
 
-## Bitpaper-specific Tests  
+## Bitpaper Integration Tests
 
-Use **exact Bitpaper terms** like "paper", "tags", "BAPI".  
-Use exact structures like: "/api/user/papers/save".  
+Use **exact Bitpaper terms** like "paper", "tags", "BAPI":
 
-Domain accuracy is required, not just encouraged.  
+- `bitpaper.test.js` - BAPI endpoint integration tests  
 
-- `bitpaper.test.js` - Bitpaper endpoint integration tests  
-- `util/server/index.js` - Mock server with exact BAPI endpoints  
+## Test Utilities
+
+- `util/setup.js` - JSDOM setup, mock components, test environment
+- `util/server/index.js` - Mock server with exact BAPI endpoints
+- `util/server/test/server.test.js` - Mock server validation tests
+- `util/services/bapi.js` - Standardized BAPI service configuration
+- `util/services/acme.js` - Generic service configuration for core tests  
+
+## Service Configurations
+
+All external configuration tests use standardized service configurations:
+
+```javascript
+import { bapiService } from './util/services/bapi.js'
+import { acmeService } from './util/services/acme.js'
+
+// Use BAPI service for Bitpaper-specific tests
+const config = bapiService(baseURL + '/api')
+behavior.api = config
+
+// Use ACME service for generic core behavior tests  
+const config = acmeService(baseURL + '/api')
+behavior.api = config
+```
+
+**BAPI Service**: Complete Bitpaper API configuration with auth, paper, tags, preferences, assets, and RTC domains.
+
+**ACME Service**: Minimal generic configuration with auth and resource domains for testing core HttpBehavior functionality.
 
 ## Running Tests  
 

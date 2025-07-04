@@ -1,80 +1,247 @@
 import test from 'node:test'
-import { createTestEnvironment, createBehaviorInstance } from './util/setup.js'
+import { createTestEnvironment, createBehaviorInstance, createMockComponent } from './util/setup.js'
+import { createTestServer } from './util/server/index.js'
 
 import '../http-behavior.js'
 
-test('HttpBehavior URL building', async t => {
+test('HttpBehavior URL building via external configuration', async t => {
   let cleanup
+  let server
+  
   let behavior
   
-  t.before(() => {
+  t.before(async () => {
     cleanup = createTestEnvironment()
+    server = createTestServer(); await server.start()
+    
   })
   
-  t.after(() => {
+  t.after(async () => {
+    await server?.stop()
     cleanup?.()
   })
   
   t.beforeEach(() => {
+    window.localStorage.clear()
     behavior = createBehaviorInstance(globalThis.HttpBehavior)
   })
 
-  await t.test('service builds API URLs from configuration', async t => {
-    await t.test('prepends base URL to relative paths', async t => {
-      behavior.services = {
-        bapi: { baseURL: 'https://api.example.com' },
-        api: { baseURL: 'https://legacy.example.com' }
-      }
+  await t.test('fetch method builds URLs from external configuration', async t => {
+    await t.todo('url building: service selection', async t => {
+      const config = {
+        env: 'development',
+        actions: {
+          test: {
+            callBapi: function() {
+              return this.fetch('bapi', '/test');
+            },
+            callSocket: function() {
+              return this.fetch('socket', '/connect');
+            }
+          }
+        },
+        services: {
+          bapi: {
+            base: {
+              development: 'http://localhost:5100/api',
+              production: 'https://api.bitpaper.io'
+            }
+          },
+          socket: {
+            base: {
+              development: 'ws://localhost:5002',
+              production: 'wss://ws.bitpaper.io'
+            }
+          }
+        }
+      };
+
+      behavior.api = config;
+      const component = createMockComponent();
       
-      const url = behavior._buildUrl('/api/test')
-      t.assert.strictEqual(url, 'https://api.example.com/api/test')
+      // Mock global fetch to capture URLs
+      const capturedUrls = [];
+      global.fetch = async (url, options) => {
+        capturedUrls.push(url);
+        return { json: () => Promise.resolve([]) };
+      };
+
+      await behavior.service(component).test.callBapi();
+      await behavior.service(component).test.callSocket();
+
+      t.assert.strictEqual(capturedUrls.at(0), 'http://localhost:5100/api/test', 'Should use bapi development URL')
+      t.assert.strictEqual(capturedUrls.at(1), 'ws://localhost:5002/connect', 'Should use socket development URL')
     })
 
+    await t.todo('url building: environment selection', async t => {
+      const config = {
+        env: 'production',
+        actions: {
+          test: {
+            call: function() {
+              return this.fetch('bapi', '/test');
+            }
+          }
+        },
+        services: {
+          bapi: {
+            base: {
+              development: 'http://localhost:5100/api',
+              production: 'https://api.bitpaper.io'
+            }
+          }
+        }
+      };
 
-    await t.test('returns path when no configuration exists', async t => {
-      behavior.services = null
+      behavior.api = config;
+      const component = createMockComponent();
       
-      const url = behavior._buildUrl('/api/test')
-      t.assert.strictEqual(url, '/api/test')
+      // Mock global fetch to capture URLs
+      const capturedUrls = [];
+      global.fetch = async (url, options) => {
+        capturedUrls.push(url);
+        return { json: () => Promise.resolve([]) };
+      };
+
+      await behavior.service(component).test.call();
+
+      t.assert.strictEqual(capturedUrls.at(0), 'https://api.bitpaper.io/test', 'Should use production URL when env=production')
+    })
+
+    await t.todo('url building: absolute URL passthrough', async t => {
+      const config = {
+        env: 'development',
+        actions: {
+          test: {
+            callExternal: function() {
+              return this.fetch('external', 'https://external.api.com/webhook');
+            }
+          }
+        },
+        services: {
+          external: {
+            base: {
+              development: 'should-be-ignored'
+            }
+          }
+        }
+      };
+
+      behavior.api = config;
+      const component = createMockComponent();
+      
+      // Mock global fetch to capture URLs
+      const capturedUrls = [];
+      global.fetch = async (url, options) => {
+        capturedUrls.push(url);
+        return { json: () => Promise.resolve([]) };
+      };
+
+      await behavior.service(component).test.callExternal();
+
+      t.assert.strictEqual(capturedUrls.at(0), 'https://external.api.com/webhook', 'Should preserve absolute URLs unchanged')
     })
   })
 
-  // Parameter substitution and query building removed - contradicts specification
-  // Spec explicitly states: "WHAT PARAMETER SUBSTITUTION? just prepend the right baseurl"
+  await t.test('fetch method handles path combinations', async t => {
+    await t.todo('url building: path concatenation', async t => {
+      const config = {
+        env: 'development',
+        actions: {
+          test: {
+            callWithPath: function() {
+              return this.fetch('bapi', '/user/papers');
+            },
+            callWithLeadingSlash: function() {
+              return this.fetch('bapi', 'user/papers');
+            }
+          }
+        },
+        services: {
+          bapi: {
+            base: {
+              development: server.host + '/api'  // ends without slash
+            }
+          }
+        }
+      };
 
-  await t.test('service handles absolute URLs', async t => {
-    behavior.services = {
-      bapi: { baseURL: 'https://api.example.com' }
-    }
+      behavior.api = config;
+      const component = createMockComponent();
+      
+      // Mock global fetch to capture URLs
+      const capturedUrls = [];
+      global.fetch = async (url, options) => {
+        capturedUrls.push(url);
+        return { json: () => Promise.resolve([]) };
+      };
 
-    await t.test('preserves external URLs unchanged', async t => {
-      const url = behavior._buildUrl('https://external.api.com/webhook')
-      t.assert.strictEqual(url, 'https://external.api.com/webhook')
+      await behavior.service(component).test.callWithPath();
+      await behavior.service(component).test.callWithLeadingSlash();
+
+      t.assert.strictEqual(capturedUrls.at(0), server.host + '/api/user/papers', 'Should handle path with leading slash')
+      t.assert.strictEqual(capturedUrls.at(1), server.host + '/api/user/papers', 'Should handle path without leading slash')
     })
   })
 
-  await t.test('service adapts to environment URLs', async t => {
-    await t.test('uses development URLs locally', async t => {
-      behavior.services = {
-        bapi: { baseURL: 'http://localhost:3000' },
-        api: { baseURL: 'http://localhost:4000' }
-      }
-      
-      const url = behavior._buildUrl('/api/test')
-      t.assert.strictEqual(url, 'http://localhost:3000/api/test')
+  await t.test('fetch method error validation', async t => {
+    await t.todo('url building: missing service error', async t => {
+      const config = {
+        env: 'development',
+        actions: {
+          test: {
+            badCall: function() {
+              return this.fetch('nonexistent', '/test');
+            }
+          }
+        },
+        services: {
+          bapi: {
+            base: { development: server.host + '/api' }
+          }
+        }
+      };
+
+      behavior.api = config;
+      const component = createMockComponent();
+
+      await t.assert.rejects(
+        () => behavior.service(component).test.badCall(),
+        /Service 'nonexistent' not found/
+      );
     })
 
-    await t.test('uses production URLs in deployment', async t => {
-      behavior.services = {
-        bapi: { baseURL: 'https://api.bitpaper.io' },
-        api: { baseURL: 'https://legacy-api.bitpaper.io' }
-      }
-      
-      const url = behavior._buildUrl('/api/test')
-      t.assert.strictEqual(url, 'https://api.bitpaper.io/api/test')
+    await t.todo('url building: missing environment error', async t => {
+      const config = {
+        env: 'staging',  // Not defined in service base
+        actions: {
+          test: {
+            call: function() {
+              return this.fetch('bapi', '/test');
+            }
+          }
+        },
+        services: {
+          bapi: {
+            base: {
+              development: server.host + '/api',
+              production: 'https://api.bitpaper.io'
+            }
+          }
+        }
+      };
+
+      behavior.api = config;
+      const component = createMockComponent();
+
+      await t.assert.rejects(
+        () => behavior.service(component).test.call(),
+        /Environment 'staging' not found/
+      );
     })
   })
 })
 
-// Route feature TODOs removed - parameter substitution not part of specification
-// URLs built at call time using template literals in action methods
+// Simple URL building - no parameter substitution as per specification
+// URLs built at call time using template literals in action methods:
+// Example: `/user/${userId}/papers` instead of parameter substitution
