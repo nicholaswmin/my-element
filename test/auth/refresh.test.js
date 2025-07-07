@@ -25,7 +25,7 @@ test('Token refresh and expiration handling', async t => {
     window.localStorage.clear()
     behavior = createBehaviorInstance(globalThis.HttpBehavior)
     behavior.services = { bapi: { baseURL: server.host } }
-    behavior._buildService()
+    behavior._buildApi()
   })
 
   await t.test('token expiration detection and refresh', async t => {

@@ -2,7 +2,6 @@ import test from 'node:test'
 import { createTestEnvironment, createBehaviorInstance, createMockComponent } from './util/setup.js'
 import { createTestServer } from './util/server/index.js'
 import { bapiService } from './util/services/bapi.js'
-import { acmeService } from './util/services/acme.js'
 
 import '../http-behavior.js'
 
@@ -11,16 +10,20 @@ test('HttpBehavior external configuration', async t => {
   let server
   let baseURL
   let behavior
+  let originalFetch
 
   t.before(async () => {
     cleanup = createTestEnvironment()
     server = createTestServer()
     baseURL = await server.start()
+    originalFetch = global.fetch  // Store original fetch before any tests
   })
 
   t.after(async () => {
     await server?.stop()
     cleanup?.()
+    // Restore original fetch after all tests
+    global.fetch = originalFetch
   })
 
   t.beforeEach(() => {
@@ -28,29 +31,38 @@ test('HttpBehavior external configuration', async t => {
     behavior = createBehaviorInstance(globalThis.HttpBehavior)
   })
 
+  t.afterEach(() => {
+    // Restore original fetch after each test in case it was mocked
+    global.fetch = originalFetch
+  })
+
   await t.test('accepts external API configuration', async t => {
-    await t.todo('api property: accepts external configuration', async t => {
+    await t.test('api property: accepts external configuration', async t => {
       // Use standardized BAPI service configuration
       const config = bapiService(baseURL + '/api')
 
-      behavior.api = config
+      behavior.apiConfig = config
+      behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
+      behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
       
-      // Should trigger _apiChanged observer that transforms config to function
+      // Should trigger _apiConfigChanged observer that transforms config and builds API function
       t.assert.ok(behavior.api, 'api property should be set')
-      t.assert.strictEqual(typeof behavior.api, 'function', 'api should be function after _apiChanged processes config')
+      t.assert.strictEqual(typeof behavior.api, 'function', 'api should be function after _apiConfigChanged processes config')
     })
 
-    await t.todo('method binding: enables cross-calling', async t => {
+    await t.test('method binding: enables cross-calling', async t => {
       // Use standardized BAPI service configuration which includes method binding
       const config = bapiService(baseURL + '/api')
 
-      behavior.api = config
+      behavior.apiConfig = config
+      behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
       const component = createMockComponent();
+      const api = behavior.api(component);
       
       // Mock fetch to track cross-method calls
       const fetchCalls = [];
-      const originalFetch = behavior.api(component).fetch;
-      behavior.api(component).fetch = function(service, path, options) {
+      const originalFetch = api.fetch;
+      api.fetch = function(service, path, options) {
         fetchCalls.push({ service, path, options });
         // Mock paper.get() to return true (exists), triggering paper.edit()
         if (path === '/paper/test-123') return Promise.resolve(true);
@@ -58,7 +70,7 @@ test('HttpBehavior external configuration', async t => {
       };
       
       // Should be able to call methods that reference each other
-      await behavior.api(component).paper.save('test-123', { title: 'Test' });
+      await api.paper.save('test-123', { title: 'Test' });
       
       // Verify cross-method calling happened: save() -> get() -> edit()
       t.assert.strictEqual(fetchCalls.length, 2, 'Should call get() then edit()')
@@ -69,11 +81,12 @@ test('HttpBehavior external configuration', async t => {
   })
 
   await t.test('provides fetch method for service multiplexing', async t => {
-    await t.todo('fetch method: service multiplexing', async t => {
+    await t.test('fetch method: service multiplexing', async t => {
       // Use standardized BAPI service configuration
       const config = bapiService(baseURL + '/api')
 
-      behavior.api = config
+      behavior.apiConfig = config
+      behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
       const component = createMockComponent();
       const api = behavior.api(component);
 
@@ -81,7 +94,12 @@ test('HttpBehavior external configuration', async t => {
       const capturedRequests = [];
       global.fetch = async (url, options) => {
         capturedRequests.push({ url, options });
-        return { json: () => Promise.resolve([]) };
+        return { 
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: () => Promise.resolve([]) 
+        };
       };
 
       // Should be able to use fetch method for different endpoints
@@ -96,19 +114,25 @@ test('HttpBehavior external configuration', async t => {
       t.assert.strictEqual(capturedRequests.at(1).url, baseURL + '/api/user/tags', 'Second request should be tags')
     })
 
-    await t.todo('fetch method: environment URLs', async t => {
+    await t.test('fetch method: environment URLs', async t => {
       // Use standardized BAPI service with production environment
       const config = bapiService(baseURL + '/api')
       config.env = 'production'  // Override for this test
 
-      behavior.api = config
+      behavior.apiConfig = config
+      behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
       const component = createMockComponent();
       
       // Mock global fetch to capture environment URL selection
       const capturedUrls = [];
       global.fetch = async (url, options) => {
         capturedUrls.push(url);
-        return { json: () => Promise.resolve([]) };
+        return { 
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          json: () => Promise.resolve([]) 
+        };
       };
       
       // Should use production URL when env=production
@@ -120,11 +144,12 @@ test('HttpBehavior external configuration', async t => {
   })
 
   await t.test('creates contextual API function', async t => {
-    await t.todo('api function: component context', async t => {
+    await t.test('api function: component context', async t => {
       // Use standardized BAPI service configuration
       const config = bapiService(baseURL + '/api')
 
-      behavior.api = config
+      behavior.apiConfig = config
+      behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
       const component = createMockComponent();
       const api = behavior.api(component);
 
@@ -135,11 +160,12 @@ test('HttpBehavior external configuration', async t => {
       t.assert.strictEqual(typeof api.fetch, 'function', 'Should provide fetch method')
     })
 
-    await t.todo('loading state: automatic management', async t => {
+    await t.test('loading state: automatic management', async t => {
       // Use standardized BAPI service configuration
       const config = bapiService(baseURL + '/api')
 
-      behavior.api = config
+      behavior.apiConfig = config
+      behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
       behavior.loggedInUser = { tokens: { access: server.createValidToken() } };
       
       const component = createMockComponent();
@@ -155,7 +181,7 @@ test('HttpBehavior external configuration', async t => {
   })
 
   await t.test('handles missing or invalid configuration', async t => {
-    await t.todo('validation: missing service error', async t => {
+    await t.test('validation: missing service error', async t => {
       const config = {
         env: 'development',
         actions: {
@@ -172,16 +198,19 @@ test('HttpBehavior external configuration', async t => {
         }
       };
 
-      behavior.api = config;
+      behavior.apiConfig = config
+      behavior._apiConfigChanged(config)  // Manually trigger observer in test environment;
       const component = createMockComponent();
 
-      await t.assert.rejects(
-        () => behavior.api(component).test.badCall(),
-        /Service 'nonexistent' not found/
-      );
+      try {
+        await behavior.api(component).test.badCall();
+        t.assert.fail('Should have thrown error');
+      } catch (error) {
+        t.assert.ok(error.message.includes('Service \'nonexistent\' not found'), 'Should throw service not found error');
+      }
     })
 
-    await t.todo('validation: missing environment error', async t => {
+    await t.test('validation: missing environment error', async t => {
       const config = {
         env: 'staging',  // Not defined in service base
         actions: {
@@ -201,22 +230,108 @@ test('HttpBehavior external configuration', async t => {
         }
       };
 
-      behavior.api = config;
+      behavior.apiConfig = config
+      behavior._apiConfigChanged(config)  // Manually trigger observer in test environment;
       const component = createMockComponent();
 
-      await t.assert.rejects(
-        () => behavior.api(component).test.call(),
-        /Environment 'staging' not found/
-      );
+      try {
+        await behavior.api(component).test.call();
+        t.assert.fail('Should have thrown error');
+      } catch (error) {
+        t.assert.ok(error.message.includes('Environment \'staging\' not found'), 'Should throw environment not found error');
+      }
     })
   })
 })
 
-// TODO tests for missing auth methods that should be externally configured
 test('HttpBehavior auth methods via external configuration', async t => {
-  await t.todo('auth actions: register method')
+  let cleanup
+  let server
+  let baseURL
+  let behavior
+  let originalFetch
 
-  await t.todo('auth actions: resetPassword method')
+  t.before(async () => {
+    cleanup = createTestEnvironment()
+    server = createTestServer()
+    baseURL = await server.start()
+    originalFetch = global.fetch  // Store original fetch
+  })
 
-  await t.todo('auth actions: verifyEmail method')
+  t.after(async () => {
+    await server?.stop()
+    cleanup?.()
+    // Restore original fetch
+    global.fetch = originalFetch
+  })
+
+  t.beforeEach(() => {
+    window.localStorage.clear()
+    behavior = createBehaviorInstance(globalThis.HttpBehavior)
+    // Ensure we're using real fetch for auth tests
+    global.fetch = originalFetch
+  })
+
+  await t.test('auth actions: register method', async t => {
+    const config = bapiService(baseURL + '/api')
+    behavior.apiConfig = config
+    behavior._apiConfigChanged(config)
+    const component = createMockComponent()
+    const api = behavior.api(component)
+
+    // Test successful registration
+    const result = await api.auth.register({
+      firstName: 'John',
+      lastName: 'Doe',
+      email: 'john@example.com',
+      password: 'password123'
+    })
+
+    t.assert.ok(result, 'Should return registration result')
+    t.assert.strictEqual(typeof result.id_user, 'string', 'Should return user ID')
+    t.assert.strictEqual(result.email, 'john@example.com', 'Should return email')
+    t.assert.ok(result.tokens, 'Should return tokens')
+  })
+
+  await t.test('auth actions: resetPassword method', async t => {
+    const config = bapiService(baseURL + '/api')
+    behavior.apiConfig = config
+    behavior._apiConfigChanged(config)
+    const component = createMockComponent()
+    const api = behavior.api(component)
+
+    // Test successful password reset request
+    await api.auth.resetPassword('test@example.com')
+    
+    // Should complete without error
+    t.assert.ok(true, 'Password reset request should complete')
+
+    // Test error case
+    await t.assert.rejects(
+      () => api.auth.resetPassword('unknown@example.com'),
+      /unknown_user_email/,
+      'Should throw error for unknown email'
+    )
+  })
+
+  await t.test('auth actions: verifyEmail method', async t => {
+    const config = bapiService(baseURL + '/api')
+    behavior.apiConfig = config
+    behavior._apiConfigChanged(config)
+    const component = createMockComponent()
+    const api = behavior.api(component)
+
+    // Test successful email verification
+    await api.auth.verifyEmail('valid-token')
+    
+    // Should complete without error
+    t.assert.ok(true, 'Email verification should complete')
+
+    // Test error case
+    await t.assert.rejects(
+      () => api.auth.verifyEmail('invalid-token'),
+      /incorrect_token/,
+      'Should throw error for invalid token'
+    )
+  })
 })

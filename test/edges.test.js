@@ -29,19 +29,19 @@ test('HttpBehavior edge cases and boundary scenarios', async t => {
       id_user: '123',
       tokens: { access: server.createValidToken() }
     }
-    behavior._buildService()
+    behavior._buildApi()
   })
 
   await t.test('edge cases: concurrent request handling', async t => {
-    await t.todo('edge case: multiple components requesting simultaneously', async t => {
+    t.todo('edge case: multiple components requesting simultaneously', async t => {
       const comp1 = createMockComponent()
       const comp2 = createMockComponent()
       const comp3 = createMockComponent()
       
       // Start concurrent requests from different components
-      const promise1 = behavior.service(comp1).paper.save({ id_session: 'paper-1' })
-      const promise2 = behavior.service(comp2).tags.list()
-      const promise3 = behavior.service(comp3).paper.list()
+      const promise1 = behavior.api(comp1).paper.save({ id_session: 'paper-1' })
+      const promise2 = behavior.api(comp2).tags.list()
+      const promise3 = behavior.api(comp3).paper.list()
       
       // All should be loading
       t.assert.strictEqual(comp1.loading, true, 'Component 1 should be loading')
@@ -56,12 +56,12 @@ test('HttpBehavior edge cases and boundary scenarios', async t => {
       t.assert.strictEqual(comp3.loading, false, 'Component 3 should finish loading')
     })
 
-    await t.todo('edge case: rapid sequential requests from same component', async t => {
+    t.todo('edge case: rapid sequential requests from same component', async t => {
       const component = createMockComponent()
       
       // Make rapid sequential requests
-      const promise1 = behavior.service(component).tags.list()
-      const promise2 = behavior.service(component).paper.list()
+      const promise1 = behavior.api(component).tags.list()
+      const promise2 = behavior.api(component).paper.list()
       
       // Second request should cancel first request's component state
       await Promise.all([promise1, promise2])
@@ -72,12 +72,12 @@ test('HttpBehavior edge cases and boundary scenarios', async t => {
   })
 
   await t.test('edge cases: boundary conditions', async t => {
-    await t.todo('edge case: empty request body handling', async t => {
+    t.todo('edge case: empty request body handling', async t => {
       const component = createMockComponent()
       
       // Test behavior with empty/null data
       await t.assert.rejects(
-        () => behavior.service(component).paper.save({}),
+        () => behavior.api(component).paper.save({}),
         error => error.message.includes('validation'),
         'Should handle empty data gracefully'
       )
@@ -85,12 +85,12 @@ test('HttpBehavior edge cases and boundary scenarios', async t => {
       t.assert.ok(component.lastError, 'Should set error on component')
     })
 
-    await t.todo('edge case: malformed response handling', async t => {
+    t.todo('edge case: malformed response handling', async t => {
       const component = createMockComponent()
       
       // Test with endpoint that returns non-JSON
       await t.assert.rejects(
-        () => behavior.service(component).test.malformed(),
+        () => behavior.api(component).test.malformed(),
         error => error.message.includes('JSON'),
         'Should handle malformed responses'
       )
@@ -99,13 +99,13 @@ test('HttpBehavior edge cases and boundary scenarios', async t => {
   })
 
   await t.test('edge cases: service function behavior', async t => {
-    await t.todo('edge case: service function availability', async t => {
+    t.todo('edge case: service function availability', async t => {
       const component = createMockComponent()
       
       // Test service function exists and works
       t.assert.strictEqual(typeof behavior.service, 'function', 'service should be function')
       
-      const service = behavior.service(component)
+      const service = behavior.api(component)
       t.assert.ok(service, 'service(component) should return service object')
       t.assert.ok(service.paper, 'Should have paper domain')
       t.assert.ok(service.tags, 'Should have tags domain')
@@ -115,7 +115,7 @@ test('HttpBehavior edge cases and boundary scenarios', async t => {
 
 // TODO tests for demonstrating correct component integration patterns
 test('Edge cases: Component integration', async t => {
-  await t.todo('integration: component property declaration', async t => {
+  t.todo('integration: component property declaration', async t => {
     // Components should declare:
     // properties: {
     //   api: Function,
@@ -125,7 +125,7 @@ test('Edge cases: Component integration', async t => {
     // }
   })
 
-  await t.todo('integration: property binding from parent', async t => {
+  t.todo('integration: property binding from parent', async t => {
     // app-whiteboard should bind: api="[[api]]"
     // Child components receive the api function
   })

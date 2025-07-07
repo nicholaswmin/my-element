@@ -25,7 +25,7 @@ test('Authorization headers and token validation', async t => {
     window.localStorage.clear()
     behavior = createBehaviorInstance(globalThis.HttpBehavior)
     behavior.services = { bapi: { baseURL } }
-    behavior._buildService()
+    behavior._buildApi()
   })
 
   await t.test('BAPI authorization compliance', async t => {

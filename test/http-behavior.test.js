@@ -31,14 +31,14 @@ test('HttpBehavior', async t => {
 
 
 
-  await t.todo('api pattern: component usage', async t => {
+  t.todo('api pattern: component usage', async t => {
     t.beforeEach(() => {
       behavior.loggedInUser = { 
         id_user: '123',
         tokens: { access: server.createValidToken() } 
       }
-      // External configuration instead of _buildService()
-      behavior.api = {
+      // External configuration instead of _buildApi()
+      behavior.apiConfig = {
         env: 'development',
         actions: {
           auth: {
@@ -63,7 +63,7 @@ test('HttpBehavior', async t => {
       const component = createMockComponent()
       
       // SPECIFICATION PATTERN: api(this) not service(this)
-      const api = behavior.service(component)
+      const api = behavior.api(component)
       
       // Check that api has expected domains from external configuration
       t.assert.ok(api.auth)
@@ -83,8 +83,8 @@ test('HttpBehavior', async t => {
       const comp2 = createMockComponent()
       
       // SPECIFICATION PATTERN: api(this) not service(this)
-      const api1 = behavior.service(comp1)
-      const api2 = behavior.service(comp2)
+      const api1 = behavior.api(comp1)
+      const api2 = behavior.api(comp2)
       
       t.assert.ok(api1)
       t.assert.ok(api2)
@@ -96,7 +96,7 @@ test('HttpBehavior', async t => {
 
   await t.test('HTTP request encounters error', async t => {
     t.beforeEach(() => {
-      behavior._buildService()
+      behavior._buildApi()
     })
 
     await t.test('handles 401 unauthorized response', async t => {
@@ -155,7 +155,7 @@ test('HttpBehavior', async t => {
 
 
 
-  await t.todo('api pattern: generic request method')
+  t.todo('api pattern: generic request method')
 })
 
 // Data binding tests removed - explicitly marked "out of scope" in specification

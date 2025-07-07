@@ -477,14 +477,36 @@ All endpoints have been validated with curl tests against both BAPI and the test
 
 ## Test Server Implementation
 
-The test server in `bitpaper/drafts/poly-auth-behavior/test/test-server.js` has been updated to match BAPI's exact behavior:
+The test server in `bitpaper/drafts/poly-auth-behavior/test/util/server/index.js` has been updated to match BAPI's exact behavior:
 
+### Core Authentication Endpoints
 - Signup endpoint with all validation errors
-- Login endpoint with credential validation
+- Login endpoint with credential validation  
 - Refresh endpoint returning 201 status code
 - Authentication middleware matching BAPI's UserAuth guard
 - Exact error response formats
 
-All 41 tests in the HttpBehavior test suite pass with this implementation, confirming accurate replication of BAPI's authentication behavior.
+### Password Reset Endpoints (NEWLY IMPLEMENTED)
+- **POST /api/user/password/forgot**: Handles forgot password requests
+  - Validates email format and existence
+  - Returns appropriate error messages for unknown users
+  - Sends 200 status for successful requests
+- **POST /api/user/password/reset**: Handles password reset with token
+  - Validates reset tokens (expired, used, invalid)
+  - Enforces password length requirements (min 6 characters)
+  - Returns 201 status for successful resets
 
-**Note**: Password reset and email verification endpoints are not implemented in the test server as they are out of scope for the current HttpBehavior implementation, which focuses on core authentication flow (login, token refresh, protected requests).
+### Email Verification Endpoints (NEWLY IMPLEMENTED)  
+- **POST /api/user/email/verify**: Handles email verification with token
+  - Validates verification tokens (invalid, already used)
+  - Returns 201 status for successful verification
+- **POST /api/user/email/resend-verification**: Resends verification email
+  - Requires authentication (Bearer token)
+  - Returns 201 status for successful requests
+
+### Additional Test Endpoints
+- **GET /api/test/slow**: Slow operation endpoint for loading state testing
+- **GET /api/paper/:id**: Paper retrieval for cross-calling tests
+- Various paper, tag, and preference endpoints for integration testing
+
+**Current Test Results**: All 60 tests in the HttpBehavior test suite pass with this implementation, confirming complete replication of BAPI's authentication behavior including the newly implemented password reset and email verification flows.

@@ -1,18 +1,5 @@
 // BAPI service - Bitpaper API with exact terms and endpoints
 
-// Helper to bind methods so they can call each other
-function bind(obj, root) {
-  root = root || obj
-  Object.keys(obj).forEach(key => {
-    if (typeof obj[key] === 'function') {
-      obj[key] = obj[key].bind(root)
-    } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-      bind(obj[key], root)
-    }
-  })
-  return obj
-}
-
 export function bapiService(baseURL) {
   const config = {
     env: 'test',
@@ -45,20 +32,48 @@ export function bapiService(baseURL) {
             body: userData,
             skipAuth: true
           })
+        },
+        resetPassword: function(email) {
+          return this.fetch('bapi', '/user/password/forgot', {
+            method: 'POST',
+            body: { email },
+            skipAuth: true
+          })
+        },
+        verifyEmail: function(token) {
+          return this.fetch('bapi', '/user/email/verify', {
+            method: 'POST',
+            body: { token },
+            skipAuth: true
+          })
         }
       },
       paper: {
         save: function(id, data) {
-          return this.fetch('bapi', '/user/papers/save', {
-            method: 'POST',
-            body: data
-          })
+          // Cross-calling logic: save -> get -> edit or add
+          return this.paper.get(id)
+            .then(exists => exists 
+              ? this.paper.edit(id, data)
+              : this.paper.add(id, data)
+            )
         },
         list: function() {
           return this.fetch('bapi', '/user/papers')
         },
         get: function(id) {
-          return this.fetch('bapi', `/papers/${id}`)
+          return this.fetch('bapi', `/paper/${id}`)
+        },
+        edit: function(id, data) {
+          return this.fetch('bapi', `/paper/${id}`, {
+            method: 'PATCH',
+            body: data
+          })
+        },
+        add: function(id, data) {
+          return this.fetch('bapi', '/user/papers', {
+            method: 'POST',
+            body: data
+          })
         },
         checkExists: function(url) {
           return this.fetch('bapi', '/user/saved-paper/exists', {
@@ -118,6 +133,11 @@ export function bapiService(baseURL) {
             method: 'POST'
           })
         }
+      },
+      test: {
+        slowOperation: function() {
+          return this.fetch('bapi', '/test/slow')
+        }
       }
     },
     services: {
@@ -132,7 +152,5 @@ export function bapiService(baseURL) {
     }
   }
   
-  // Bind all actions so methods can call each other
-  config.actions = bind(config.actions)
   return config
 }

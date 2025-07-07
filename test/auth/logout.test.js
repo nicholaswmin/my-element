@@ -23,18 +23,18 @@ test('Logout and session cleanup', async t => {
     window.localStorage.clear()
     behavior = createBehaviorInstance(globalThis.HttpBehavior)
     behavior.services = { bapi: { baseURL: server.host } }
-    behavior._buildService()
+    behavior._buildApi()
   })
 
   await t.test('logout through API pattern', async t => {
-    await t.todo('clears session and local storage', async t => {
+    t.todo('clears session and local storage', async t => {
       const component = createMockComponent()
       behavior.loggedInUser = { id_user: '123', email: 'test@example.com' }
       window.localStorage.setItem('loggedInUser', 
         JSON.stringify({ id_user: '123' }))
       
       // SPECIFICATION PATTERN: api(this).auth.logout()
-      await behavior.service(component).auth.logout()
+      await behavior.api(component).auth.logout()
       
       t.assert.strictEqual(behavior.loggedInUser, null)
       t.assert.strictEqual(window.localStorage.getItem('loggedInUser'), null)
@@ -80,7 +80,7 @@ test('Logout and session cleanup', async t => {
       
       // Should not throw error when already logged out
       await t.assert.doesNotReject(
-        () => behavior.service(component).auth.logout()
+        () => behavior.api(component).auth.logout()
       )
       
       t.assert.strictEqual(behavior.loggedInUser, null)
@@ -95,7 +95,7 @@ test('Logout and session cleanup', async t => {
         tokens: { access: 'token', refresh: 'refresh' }
       }
       
-      await behavior.service(component).auth.logout()
+      await behavior.api(component).auth.logout()
       
       const logoutEvents = behavior.getFiredEvents('user-logged-out')
       t.assert.ok(logoutEvents.length > 0, 'Should fire user-logged-out event')
@@ -115,7 +115,7 @@ test('Logout and session cleanup', async t => {
       const component = createMockComponent()
       
       // Start a logout while user is logged in
-      await behavior.service(component).auth.logout()
+      await behavior.api(component).auth.logout()
       
       t.assert.strictEqual(behavior.loggedInUser, null)
       t.assert.strictEqual(window.localStorage.getItem('loggedInUser'), null)

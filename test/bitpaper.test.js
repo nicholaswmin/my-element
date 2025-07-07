@@ -31,7 +31,7 @@ test('HttpBehavior endpoint integration', async t => {
     behavior.loggedInUser = { 
       id_user: '123', tokens: { access: server.createValidToken() } 
     }
-    behavior._buildService()
+    behavior._buildApi()
   })
 
   await t.test('authenticated user saves paper', async t => {

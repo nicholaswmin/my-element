@@ -254,6 +254,118 @@ export function createTestServer() {
     res.json({ data: 'success' })
   })
   
+  // Slow operation endpoint for loading state testing
+  app.get('/api/test/slow', validateAuth, (req, res) => {
+    setTimeout(() => {
+      res.json({ data: 'slow operation completed' })
+    }, 100) // 100ms delay
+  })
+  
+  // Password reset endpoints
+  app.post('/api/user/password/forgot', (req, res) => {
+    const { email } = req.body
+    
+    if (!email) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: 'Validation failed',
+        error: 'Bad Request'
+      })
+    }
+    
+    // Simulate unknown email error
+    if (email === 'unknown@example.com') {
+      return res.status(400).json({
+        status: 'error',
+        errorMessage: 'unknown_user_email'
+      })
+    }
+    
+    // Success - empty response body
+    res.status(200).send()
+  })
+  
+  app.post('/api/user/password/reset', (req, res) => {
+    const { token, password } = req.body
+    
+    if (!token || !password) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: 'Validation failed',
+        error: 'Bad Request'
+      })
+    }
+    
+    // Simulate token errors
+    if (token === 'invalid-token') {
+      return res.status(400).json({
+        status: 'error',
+        errorMessage: 'incorrect_token'
+      })
+    }
+    
+    if (token === 'used-token') {
+      return res.status(400).json({
+        status: 'error',
+        errorMessage: 'token_already_used'
+      })
+    }
+    
+    if (token === 'expired-token') {
+      return res.status(400).json({
+        status: 'error',
+        errorMessage: 'token_expired'
+      })
+    }
+    
+    // Password too short
+    if (password.length < 6) {
+      return res.status(400).json({
+        status: 'error',
+        errorMessage: 'password_too_short'
+      })
+    }
+    
+    // Success - empty response body
+    res.status(201).send()
+  })
+  
+  // Email verification endpoints
+  app.post('/api/user/email/verify', (req, res) => {
+    const { token } = req.body
+    
+    if (!token) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: 'Validation failed',
+        error: 'Bad Request'
+      })
+    }
+    
+    // Simulate token errors
+    if (token === 'invalid-token') {
+      return res.status(400).json({
+        status: 'error',
+        errorMessage: 'incorrect_token'
+      })
+    }
+    
+    if (token === 'used-token') {
+      return res.status(400).json({
+        status: 'error',
+        errorMessage: 'token_already_used'
+      })
+    }
+    
+    // Success - empty response body
+    res.status(201).send()
+  })
+  
+  app.post('/api/user/email/resend-verification', validateAuth, (req, res) => {
+    // Success - empty response body
+    res.status(201).send()
+  })
+  
   // Paper save endpoint - matches BAPI exactly
   app.post('/api/user/papers/save', validateAuth, (req, res) => {
     const { id_session, name, type = 'save', tags } = req.body
@@ -319,6 +431,15 @@ export function createTestServer() {
   })
   
   // Paper endpoints
+  app.get('/api/paper/:id', validateAuth, (req, res) => {
+    // Return paper exists for cross-calling test
+    if (req.params.id === 'test-123') {
+      res.json({ id: 'test-123', title: 'Test Paper', exists: true })
+    } else {
+      res.status(404).json({ message: 'Paper not found' })
+    }
+  })
+  
   app.patch('/api/paper/:id', validateAuth, (req, res) => {
     // BAPI returns 204 No Content for paper updates
     res.status(204).send()

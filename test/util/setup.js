@@ -114,3 +114,42 @@ export function createMockComponent() {
     }
   }
 }
+
+// Common test setup pattern used across all test files
+export function createTestSuite(testModule, options = {}) {
+  const { buildApi = false, setupHook = null } = options
+  
+  let cleanup
+  let server
+  let behavior
+  
+  testModule.before(async () => {
+    cleanup = createTestEnvironment()
+    server = (await import('./server/index.js')).createTestServer()
+    await server.start()
+    
+    if (setupHook) {
+      await setupHook(server)
+    }
+  })
+  
+  testModule.after(async () => {
+    await server?.stop()
+    cleanup?.()
+  })
+  
+  testModule.beforeEach(() => {
+    window.localStorage.clear()
+    behavior = createBehaviorInstance(globalThis.HttpBehavior)
+    behavior.services = { bapi: { baseURL: server.host } }
+    
+    if (buildApi) {
+      behavior._buildApi()
+    }
+  })
+  
+  return {
+    getBehavior: () => behavior,
+    getServer: () => server
+  }
+}

@@ -32,31 +32,24 @@ Use **exact Bitpaper terms** like "paper", "tags", "BAPI":
 ## Test Utilities
 
 - `util/setup.js` - JSDOM setup, mock components, test environment
-- `util/server/index.js` - Mock server with exact BAPI endpoints
+- `util/server/index.js` - Mock server with exact BAPI endpoints and new auth endpoints
 - `util/server/test/server.test.js` - Mock server validation tests
-- `util/services/bapi.js` - Standardized BAPI service configuration
-- `util/services/acme.js` - Generic service configuration for core tests  
+- `util/services/bapi.js` - Standardized BAPI service configuration with complete auth suite  
 
 ## Service Configurations
 
-All external configuration tests use standardized service configurations:
+All external configuration tests use standardized BAPI service configuration:
 
 ```javascript
 import { bapiService } from './util/services/bapi.js'
-import { acmeService } from './util/services/acme.js'
 
-// Use BAPI service for Bitpaper-specific tests
+// BAPI service for all external configuration tests
 const config = bapiService(baseURL + '/api')
-behavior.api = config
-
-// Use ACME service for generic core behavior tests  
-const config = acmeService(baseURL + '/api')
-behavior.api = config
+behavior.apiConfig = config
+behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
 ```
 
-**BAPI Service**: Complete Bitpaper API configuration with auth, paper, tags, preferences, assets, and RTC domains.
-
-**ACME Service**: Minimal generic configuration with auth and resource domains for testing core HttpBehavior functionality.
+**BAPI Service**: Complete Bitpaper API configuration with full auth suite (login, logout, register, resetPassword, verifyEmail, refresh), paper management with cross-calling logic, tags, preferences, assets, RTC tokens, and test endpoints for loading state verification.
 
 ## Running Tests  
 
@@ -77,4 +70,8 @@ node --test test/file.js    # Run specific file
 
 ## Notes  
 
-- Tests marked with `{ todo: true }` track missing features  
+- Tests marked with `{ todo: true }` track future enhancement features
+- External configuration functionality is implemented and tested
+- Legacy hardcoded system maintains backward compatibility
+- Most tests validate the legacy system via `_buildApi()` 
+- External configuration tests are in `config.test.js`  

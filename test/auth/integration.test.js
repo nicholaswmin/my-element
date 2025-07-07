@@ -60,13 +60,13 @@ test('Component integration and lifecycle', async t => {
   })
 
   await t.test('API pattern component isolation', async t => {
-    await t.todo('provides domain-organized methods', async t => {
+    t.todo('provides domain-organized methods', async t => {
       behavior.loggedInUser = { 
         id_user: '123',
         tokens: { access: server.createValidToken() } 
       }
-      // External configuration instead of _buildService()
-      behavior.api = {
+      // External configuration instead of _buildApi()
+      behavior.apiConfig = {
         env: 'development',
         actions: {
           auth: {
@@ -89,7 +89,7 @@ test('Component integration and lifecycle', async t => {
       const component = createMockComponent()
       
       // SPECIFICATION PATTERN: api(this) not service(this)
-      const api = behavior.service(component)
+      const api = behavior.api(component)
       
       // Check that api has expected domains from external configuration
       t.assert.ok(api.auth)
@@ -104,12 +104,12 @@ test('Component integration and lifecycle', async t => {
       t.assert.strictEqual(typeof api.tags.list, 'function')
     })
 
-    await t.todo('creates isolated API per component', async t => {
+    t.todo('creates isolated API per component', async t => {
       behavior.loggedInUser = { 
         id_user: '123',
         tokens: { access: server.createValidToken() } 
       }
-      // External configuration instead of _buildService()
+      // External configuration instead of _buildApi()
       behavior.service = {
         env: 'development',
         actions: {
@@ -134,21 +134,21 @@ test('Component integration and lifecycle', async t => {
       const comp2 = createMockComponent()
       
       // SPECIFICATION PATTERN: api(this) not service(this)
-      const api1 = behavior.service(comp1)
-      const api2 = behavior.service(comp2)
+      const api1 = behavior.api(comp1)
+      const api2 = behavior.api(comp2)
       
       t.assert.ok(api1)
       t.assert.ok(api2)
       t.assert.strictEqual(typeof behavior.api, 'function')
     })
 
-    await t.todo('delegates auth operations to behavior', async t => {
+    t.todo('delegates auth operations to behavior', async t => {
       behavior.loggedInUser = { 
         id_user: '123',
         tokens: { access: server.createValidToken() } 
       }
-      // External configuration instead of _buildService()
-      behavior.api = {
+      // External configuration instead of _buildApi()
+      behavior.apiConfig = {
         env: 'development',
         actions: {
           auth: {
@@ -168,7 +168,7 @@ test('Component integration and lifecycle', async t => {
 
       await t.test('login updates behavior state', async t => {
         // SPECIFICATION PATTERN: api(this).auth.login()
-        const result = await behavior.service(component).auth.login({ 
+        const result = await behavior.api(component).auth.login({ 
           email: 'test@example.com', 
           password: 'password' 
         })
@@ -183,7 +183,7 @@ test('Component integration and lifecycle', async t => {
         behavior.loggedInUser = { id_user: '123' }
         
         // SPECIFICATION PATTERN: api(this).auth.logout()
-        await behavior.service(logoutComponent).auth.logout()
+        await behavior.api(logoutComponent).auth.logout()
         
         t.assert.strictEqual(behavior.loggedInUser, null)
       })
@@ -241,7 +241,7 @@ test('Component integration and lifecycle', async t => {
   })
 
   await t.test('external configuration integration', async t => {
-    await t.todo('accepts external API configuration', async t => {
+    t.todo('accepts external API configuration', async t => {
       // This test expects the external configuration to be implemented
       // where actions and services come from external configuration
       const externalConfig = {
@@ -259,9 +259,9 @@ test('Component integration and lifecycle', async t => {
         }
       }
       
-      behavior.api = externalConfig
+      behavior.apiConfig = externalConfig
       const component = createMockComponent()
-      const api = behavior.service(component)
+      const api = behavior.api(component)
       
       t.assert.ok(api.auth)
       t.assert.strictEqual(typeof api.auth.login, 'function')

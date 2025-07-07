@@ -23,15 +23,15 @@ test('Login and Authentication', async t => {
     window.localStorage.clear()
     behavior = createBehaviorInstance(globalThis.HttpBehavior)
     behavior.services = { bapi: { baseURL: server.host } }
-    behavior._buildService()
+    behavior._buildApi()
   })
 
   await t.test('client-side login through API pattern', async t => {
-    await t.todo('stores session and fires success events', async t => {
+    t.todo('stores session and fires success events', async t => {
       const component = createMockComponent()
       
       // SPECIFICATION PATTERN: api(this).auth.login()
-      await behavior.service(component).auth.login({ 
+      await behavior.api(component).auth.login({ 
         email: 'test@example.com', 
         password: 'password' 
       })
@@ -83,7 +83,7 @@ test('Login and Authentication', async t => {
     })
   })
 
-  await t.todo('registration endpoint', async t => {
+  t.todo('registration endpoint', async t => {
     // Future: Add registration tests when implemented
   })
 })

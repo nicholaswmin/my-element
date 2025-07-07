@@ -27,7 +27,7 @@ test('HttpBehavior URL building via external configuration', async t => {
   })
 
   await t.test('fetch method builds URLs from external configuration', async t => {
-    await t.todo('url building: service selection', async t => {
+    t.todo('url building: service selection', async t => {
       const config = {
         env: 'development',
         actions: {
@@ -56,7 +56,7 @@ test('HttpBehavior URL building via external configuration', async t => {
         }
       };
 
-      behavior.api = config;
+      behavior.apiConfig = config;
       const component = createMockComponent();
       
       // Mock global fetch to capture URLs
@@ -66,14 +66,14 @@ test('HttpBehavior URL building via external configuration', async t => {
         return { json: () => Promise.resolve([]) };
       };
 
-      await behavior.service(component).test.callBapi();
-      await behavior.service(component).test.callSocket();
+      await behavior.api(component).test.callBapi();
+      await behavior.api(component).test.callSocket();
 
       t.assert.strictEqual(capturedUrls.at(0), 'http://localhost:5100/api/test', 'Should use bapi development URL')
       t.assert.strictEqual(capturedUrls.at(1), 'ws://localhost:5002/connect', 'Should use socket development URL')
     })
 
-    await t.todo('url building: environment selection', async t => {
+    t.todo('url building: environment selection', async t => {
       const config = {
         env: 'production',
         actions: {
@@ -93,7 +93,7 @@ test('HttpBehavior URL building via external configuration', async t => {
         }
       };
 
-      behavior.api = config;
+      behavior.apiConfig = config;
       const component = createMockComponent();
       
       // Mock global fetch to capture URLs
@@ -103,12 +103,12 @@ test('HttpBehavior URL building via external configuration', async t => {
         return { json: () => Promise.resolve([]) };
       };
 
-      await behavior.service(component).test.call();
+      await behavior.api(component).test.call();
 
       t.assert.strictEqual(capturedUrls.at(0), 'https://api.bitpaper.io/test', 'Should use production URL when env=production')
     })
 
-    await t.todo('url building: absolute URL passthrough', async t => {
+    t.todo('url building: absolute URL passthrough', async t => {
       const config = {
         env: 'development',
         actions: {
@@ -127,7 +127,7 @@ test('HttpBehavior URL building via external configuration', async t => {
         }
       };
 
-      behavior.api = config;
+      behavior.apiConfig = config;
       const component = createMockComponent();
       
       // Mock global fetch to capture URLs
@@ -137,14 +137,14 @@ test('HttpBehavior URL building via external configuration', async t => {
         return { json: () => Promise.resolve([]) };
       };
 
-      await behavior.service(component).test.callExternal();
+      await behavior.api(component).test.callExternal();
 
       t.assert.strictEqual(capturedUrls.at(0), 'https://external.api.com/webhook', 'Should preserve absolute URLs unchanged')
     })
   })
 
   await t.test('fetch method handles path combinations', async t => {
-    await t.todo('url building: path concatenation', async t => {
+    t.todo('url building: path concatenation', async t => {
       const config = {
         env: 'development',
         actions: {
@@ -166,7 +166,7 @@ test('HttpBehavior URL building via external configuration', async t => {
         }
       };
 
-      behavior.api = config;
+      behavior.apiConfig = config;
       const component = createMockComponent();
       
       // Mock global fetch to capture URLs
@@ -176,8 +176,8 @@ test('HttpBehavior URL building via external configuration', async t => {
         return { json: () => Promise.resolve([]) };
       };
 
-      await behavior.service(component).test.callWithPath();
-      await behavior.service(component).test.callWithLeadingSlash();
+      await behavior.api(component).test.callWithPath();
+      await behavior.api(component).test.callWithLeadingSlash();
 
       t.assert.strictEqual(capturedUrls.at(0), server.host + '/api/user/papers', 'Should handle path with leading slash')
       t.assert.strictEqual(capturedUrls.at(1), server.host + '/api/user/papers', 'Should handle path without leading slash')
@@ -185,7 +185,7 @@ test('HttpBehavior URL building via external configuration', async t => {
   })
 
   await t.test('fetch method error validation', async t => {
-    await t.todo('url building: missing service error', async t => {
+    t.todo('url building: missing service error', async t => {
       const config = {
         env: 'development',
         actions: {
@@ -202,16 +202,16 @@ test('HttpBehavior URL building via external configuration', async t => {
         }
       };
 
-      behavior.api = config;
+      behavior.apiConfig = config;
       const component = createMockComponent();
 
       await t.assert.rejects(
-        () => behavior.service(component).test.badCall(),
+        () => behavior.api(component).test.badCall(),
         /Service 'nonexistent' not found/
       );
     })
 
-    await t.todo('url building: missing environment error', async t => {
+    t.todo('url building: missing environment error', async t => {
       const config = {
         env: 'staging',  // Not defined in service base
         actions: {
@@ -231,11 +231,11 @@ test('HttpBehavior URL building via external configuration', async t => {
         }
       };
 
-      behavior.api = config;
+      behavior.apiConfig = config;
       const component = createMockComponent();
 
       await t.assert.rejects(
-        () => behavior.service(component).test.call(),
+        () => behavior.api(component).test.call(),
         /Environment 'staging' not found/
       );
     })

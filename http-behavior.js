@@ -4,31 +4,46 @@
  * Provides:
  * - Automatic auth header injection
  * - Token refresh with race condition prevention  
- * - Contextual service pattern for clean API calls
+ * - Contextual API pattern: api(this).domain.method()
  * - Loading/error state management
  * - Event compatibility with existing auth components
+ * - External configuration support via apiConfig property
  * 
- * Configuration:
- * The behavior expects a `services` property with at least one service containing:
- * {
- *   anyServiceName: { 
- *     baseURL: 'https://api.example.com',  // Required
- *     statics: {                           // Required
- *       socket: 'wss://ws.example.com',
- *       fetch: 'https://fetch.example.com',
- *       s3: 'https://s3.amazonaws.com/bucket'
- *     },
- *     routes: { ... }  // Optional, not yet implemented
+ * External Configuration (recommended):
+ * behavior.apiConfig = {
+ *   env: 'development',
+ *   actions: {
+ *     auth: {
+ *       login: function(credentials) {
+ *         return this.fetch('bapi', '/user/login/email', { method: 'POST', body: credentials });
+ *       }
+ *     }
+ *   },
+ *   services: {
+ *     bapi: {
+ *       base: {
+ *         development: 'http://localhost:5100/api',
+ *         production: 'https://api.bitpaper.io'
+ *       }
+ *     }
  *   }
  * }
  * 
- * The behavior is service-name agnostic and uses the first service with a baseURL.
+ * Usage: api(component).auth.login({ email: 'user@example.com', password: 'pass' })
+ * 
+ * Legacy Configuration:
+ * The behavior also supports legacy `services` property for backward compatibility.
  * Statics are accessed via Polymer data binding: [[services.serviceName.statics.socket]]
- * Currently provides hardcoded domains via service API: auth, paper, tags
  */
 globalThis.HttpBehavior = {
   properties: {
-    // Service configuration object
+    // External API configuration object (specification pattern)
+    apiConfig: {
+      type: Object,
+      observer: '_apiConfigChanged'
+    },
+
+    // Service configuration object (internal)
     services: {
       type: Object,
       value: function() { return {}; },
@@ -42,8 +57,8 @@ globalThis.HttpBehavior = {
       value: function() { return null; }
     },
 
-    // Service API instance
-    service: {
+    // API instance function
+    api: {
       type: Object,
       notify: true,
       value: function() { return null; }
@@ -52,50 +67,21 @@ globalThis.HttpBehavior = {
 
   attached: function() {
     this._initializeAuth();
-    // Service building happens via _servicesChanged observer
+    // API building happens via _servicesChanged observer
+  },
+
+  _apiConfigChanged: function(apiConfig) {
+    if (apiConfig && apiConfig.actions && apiConfig.services) {
+      // Transform external config into internal services format and build API
+      this._externalConfig = apiConfig;
+      this._buildExternalApi();
+    }
   },
 
   _servicesChanged: function(newServices) {
     if (newServices && Object.keys(newServices).length > 0) {
-      this._buildService();
+      this._buildApi();
     }
-  },
-
-  // URL building method
-  _buildUrl: function(path, options = {}) {
-    // Handle absolute URLs
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      return path;
-    }
-
-    // Get base URL from first service with baseURL
-    let baseUrl = '';
-    if (this.services) {
-      const mainService = Object.values(this.services).find(s => s && s.baseURL);
-      if (mainService) {
-        baseUrl = mainService.baseURL || '';
-      }
-    }
-
-    // Build URL with base
-    let url = baseUrl + path;
-
-    // Substitute path parameters
-    if (options.params) {
-      Object.keys(options.params).forEach(key => {
-        url = url.replace(':' + key, encodeURIComponent(options.params[key]));
-      });
-    }
-
-    // Add query parameters
-    if (options.query) {
-      const queryString = Object.keys(options.query)
-        .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(options.query[key]))
-        .join('&');
-      url += '?' + queryString;
-    }
-
-    return url;
   },
 
   // Private helper to get base URL from first service with baseURL
@@ -156,7 +142,84 @@ globalThis.HttpBehavior = {
     }
   },
 
-  _buildService: function() {
+  _buildExternalApi: function() {
+    if (!this._externalConfig) {
+      console.warn('HttpBehavior: external configuration not available');
+      return;
+    }
+
+    const config = this._externalConfig;
+    const self = this;
+
+    // Build API function that creates contextual API from external configuration
+    this.set('api', function(component) {
+      const api = {};
+
+      // Add fetch method for service multiplexing
+      api.fetch = function(serviceName, path, options = {}) {
+        const service = config.services[serviceName];
+        if (!service) {
+          throw new Error(`Service '${serviceName}' not found in configuration`);
+        }
+
+        const baseUrls = service.base;
+        if (!baseUrls || !baseUrls[config.env]) {
+          throw new Error(`Environment '${config.env}' not found for service '${serviceName}'`);
+        }
+
+        const baseUrl = baseUrls[config.env];
+        const url = baseUrl + path;
+
+        // Clone options to avoid mutating original
+        const requestOptions = { ...options };
+        
+        // Stringify JSON body if needed
+        if (requestOptions.body && typeof requestOptions.body === 'object') {
+          requestOptions.body = JSON.stringify(requestOptions.body);
+        }
+
+        // Set loading state if component provided
+        if (component && component.set) {
+          component.set('loading', true);
+          component.set('lastError', null);
+        }
+
+        return self._http.request.call(self, url, requestOptions)
+          .then(response => {
+            if (component && component.set) {
+              component.set('loading', false);
+              component.set('lastResponse', response);
+              component.fire('response', { response });
+            }
+            return response;
+          })
+          .catch(error => {
+            if (component && component.set) {
+              component.set('loading', false);
+              component.set('lastError', error);
+              component.fire('error', { error });
+            }
+            throw error;
+          });
+      };
+
+      // Add all action domains from external configuration
+      Object.keys(config.actions).forEach(domain => {
+        api[domain] = {};
+        Object.keys(config.actions[domain]).forEach(method => {
+          // Create a wrapper that ensures proper binding to api object
+          const originalMethod = config.actions[domain][method];
+          api[domain][method] = function(...args) {
+            return originalMethod.call(api, ...args);
+          };
+        });
+      });
+
+      return api;
+    });
+  },
+
+  _buildApi: function() {
     if (!this.services) {
       console.warn('HttpBehavior: services not configured');
       return;
@@ -173,8 +236,8 @@ globalThis.HttpBehavior = {
     const http = this._http;
     const self = this;
 
-    // Build service with contextual pattern
-    this.set('service', function(component) {
+    // Build API with contextual pattern
+    this.set('api', function(component) {
       return {
         auth: {
           login: function(credentials) {
@@ -185,7 +248,7 @@ globalThis.HttpBehavior = {
           }
         },
 
-            paper: {
+        paper: {
           save: function(data) {
             component.set('loading', true);
             component.set('lastError', null);
@@ -590,8 +653,7 @@ globalThis.HttpBehavior = {
     try {
       return JSON.parse(window.localStorage.getItem('loggedInUser') || '{}');
     } catch (e) {
-      if (process.env.NODE_ENV.trim().toLowerCase().includes('test'))
-        console.warn('Failed to parse stored user:', e);
+      console.warn('Failed to parse stored user:', e);
 
       return {};
     }
