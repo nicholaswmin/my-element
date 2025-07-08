@@ -1,6 +1,7 @@
 import test from 'node:test'
 import { createTestEnvironment, createBehaviorInstance, createMockComponent } from '../util/setup.js'
 import { createTestServer } from '../util/server/index.js'
+import { bapiService } from '../util/services/bapi.js'
 
 import '../../http-behavior.js'
 
@@ -8,34 +9,35 @@ test('Logout and session cleanup', async t => {
   let cleanup
   let server
   let behavior
-  
+
   t.before(async () => {
     cleanup = createTestEnvironment()
     server = createTestServer(); await server.start()
-  }) 
-  
+  })
+
   t.after(async () => {
     await server?.stop()
     cleanup?.()
   })
-  
+
   t.beforeEach(() => {
     window.localStorage.clear()
     behavior = createBehaviorInstance(globalThis.HttpBehavior)
-    behavior.services = { bapi: { baseURL: server.host } }
-    behavior._buildApi()
+    const config = bapiService(server.host + '/api')
+    behavior.apiConfig = config
+    behavior._apiConfigChanged(config)
   })
 
   await t.test('logout through API pattern', async t => {
     t.todo('clears session and local storage', async t => {
       const component = createMockComponent()
       behavior.loggedInUser = { id_user: '123', email: 'test@example.com' }
-      window.localStorage.setItem('loggedInUser', 
+      window.localStorage.setItem('loggedInUser',
         JSON.stringify({ id_user: '123' }))
-      
+
       // SPECIFICATION PATTERN: api(this).auth.logout()
       await behavior.api(component).auth.logout()
-      
+
       t.assert.strictEqual(behavior.loggedInUser, null)
       t.assert.strictEqual(window.localStorage.getItem('loggedInUser'), null)
       t.assert.ok(behavior.getFiredEvents('user-logged-out').length > 0)
@@ -66,9 +68,9 @@ test('Logout and session cleanup', async t => {
 
       behavior.loggedInUser = fullUser
       window.localStorage.setItem('loggedInUser', JSON.stringify(fullUser))
-      
+
       behavior._clearStoredUser()
-      
+
       t.assert.strictEqual(behavior.loggedInUser, null)
       t.assert.strictEqual(window.localStorage.getItem('loggedInUser'), null)
     })
@@ -77,26 +79,26 @@ test('Logout and session cleanup', async t => {
       const component = createMockComponent()
       behavior.loggedInUser = null
       window.localStorage.removeItem('loggedInUser')
-      
+
       // Should not throw error when already logged out
       await t.assert.doesNotReject(
         () => behavior.api(component).auth.logout()
       )
-      
+
       t.assert.strictEqual(behavior.loggedInUser, null)
       t.assert.strictEqual(window.localStorage.getItem('loggedInUser'), null)
     })
 
     await t.test('logout fires expected events', async t => {
       const component = createMockComponent()
-      behavior.loggedInUser = { 
-        id_user: '123', 
+      behavior.loggedInUser = {
+        id_user: '123',
         email: 'test@example.com',
         tokens: { access: 'token', refresh: 'refresh' }
       }
-      
+
       await behavior.api(component).auth.logout()
-      
+
       const logoutEvents = behavior.getFiredEvents('user-logged-out')
       t.assert.ok(logoutEvents.length > 0, 'Should fire user-logged-out event')
     })
@@ -113,13 +115,13 @@ test('Logout and session cleanup', async t => {
       }))
 
       const component = createMockComponent()
-      
+
       // Start a logout while user is logged in
       await behavior.api(component).auth.logout()
-      
+
       t.assert.strictEqual(behavior.loggedInUser, null)
       t.assert.strictEqual(window.localStorage.getItem('loggedInUser'), null)
-      
+
       // Subsequent authenticated requests should fail
       await t.assert.rejects(
         () => behavior._http.request.call(behavior, `${server.host}/api/test`),

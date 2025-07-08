@@ -1,9 +1,9 @@
 import test from 'node:test'
-import { createTestEnvironment, createBehaviorInstance, createMockComponent } from './util/setup.js'
-import { createTestServer } from './util/server/index.js'
-import { bapiService } from './util/services/bapi.js'
+import { createTestEnvironment, createBehaviorInstance, createMockComponent } from '../util/setup.js'
+import { createTestServer } from '../util/server/index.js'
+import { bapiService } from '../util/services/bapi.js'
 
-import '../http-behavior.js'
+import '../../http-behavior.js'
 
 test('HttpBehavior external configuration', async t => {
   let cleanup
@@ -43,8 +43,7 @@ test('HttpBehavior external configuration', async t => {
 
       behavior.apiConfig = config
       behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
-      behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
-      
+
       // Should trigger _apiConfigChanged observer that transforms config and builds API function
       t.assert.ok(behavior.api, 'api property should be set')
       t.assert.strictEqual(typeof behavior.api, 'function', 'api should be function after _apiConfigChanged processes config')
@@ -58,7 +57,7 @@ test('HttpBehavior external configuration', async t => {
       behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
       const component = createMockComponent();
       const api = behavior.api(component);
-      
+
       // Mock fetch to track cross-method calls
       const fetchCalls = [];
       const originalFetch = api.fetch;
@@ -68,10 +67,10 @@ test('HttpBehavior external configuration', async t => {
         if (path === '/paper/test-123') return Promise.resolve(true);
         return Promise.resolve(null);
       };
-      
+
       // Should be able to call methods that reference each other
       await api.paper.save('test-123', { title: 'Test' });
-      
+
       // Verify cross-method calling happened: save() -> get() -> edit()
       t.assert.strictEqual(fetchCalls.length, 2, 'Should call get() then edit()')
       t.assert.strictEqual(fetchCalls.at(0).path, '/paper/test-123', 'Should call get() first')
@@ -94,17 +93,17 @@ test('HttpBehavior external configuration', async t => {
       const capturedRequests = [];
       global.fetch = async (url, options) => {
         capturedRequests.push({ url, options });
-        return { 
+        return {
           ok: true,
           status: 200,
           headers: { get: () => 'application/json' },
-          json: () => Promise.resolve([]) 
+          json: () => Promise.resolve([])
         };
       };
 
       // Should be able to use fetch method for different endpoints
       t.assert.strictEqual(typeof api.fetch, 'function', 'fetch method should be available')
-      
+
       await api.paper.list()
       await api.tags.list()
 
@@ -122,22 +121,22 @@ test('HttpBehavior external configuration', async t => {
       behavior.apiConfig = config
       behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
       const component = createMockComponent();
-      
+
       // Mock global fetch to capture environment URL selection
       const capturedUrls = [];
       global.fetch = async (url, options) => {
         capturedUrls.push(url);
-        return { 
+        return {
           ok: true,
           status: 200,
           headers: { get: () => 'application/json' },
-          json: () => Promise.resolve([]) 
+          json: () => Promise.resolve([])
         };
       };
-      
+
       // Should use production URL when env=production
       await behavior.api(component).paper.list()
-      
+
       t.assert.strictEqual(capturedUrls.length, 1, 'Should make one request')
       t.assert.strictEqual(capturedUrls.at(0), 'https://api.bitpaper.io/user/papers', 'Should use production URL when env=production')
     })
@@ -167,14 +166,14 @@ test('HttpBehavior external configuration', async t => {
       behavior.apiConfig = config
       behavior._apiConfigChanged(config)  // Manually trigger observer in test environment
       behavior.loggedInUser = { tokens: { access: server.createValidToken() } };
-      
+
       const component = createMockComponent();
       const promise = behavior.api(component).test.slowOperation();
 
       t.assert.strictEqual(component.loading, true, 'Should set loading=true during request')
-      
+
       await promise;
-      
+
       t.assert.strictEqual(component.loading, false, 'Should set loading=false after completion')
       t.assert.ok(component.lastResponse, 'Should set lastResponse')
     })
@@ -206,7 +205,7 @@ test('HttpBehavior external configuration', async t => {
         await behavior.api(component).test.badCall();
         t.assert.fail('Should have thrown error');
       } catch (error) {
-        t.assert.ok(error.message.includes('Service \'nonexistent\' not found'), 'Should throw service not found error');
+        t.assert.ok(error.message.includes('Service \'nonexistent\' is not configured'), 'Should throw service not found error');
       }
     })
 
@@ -238,7 +237,7 @@ test('HttpBehavior external configuration', async t => {
         await behavior.api(component).test.call();
         t.assert.fail('Should have thrown error');
       } catch (error) {
-        t.assert.ok(error.message.includes('Environment \'staging\' not found'), 'Should throw environment not found error');
+        t.assert.ok(error.message.includes('Environment \'staging\' is not configured'), 'Should throw environment not found error');
       }
     })
   })
@@ -302,7 +301,7 @@ test('HttpBehavior auth methods via external configuration', async t => {
 
     // Test successful password reset request
     await api.auth.resetPassword('test@example.com')
-    
+
     // Should complete without error
     t.assert.ok(true, 'Password reset request should complete')
 
@@ -323,7 +322,7 @@ test('HttpBehavior auth methods via external configuration', async t => {
 
     // Test successful email verification
     await api.auth.verifyEmail('valid-token')
-    
+
     // Should complete without error
     t.assert.ok(true, 'Email verification should complete')
 

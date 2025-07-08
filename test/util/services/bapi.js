@@ -1,7 +1,5 @@
-// BAPI service - Bitpaper API with exact terms and endpoints
-
 export function bapiService(baseURL) {
-  const config = {
+  return {
     env: 'test',
     actions: {
       auth: {
@@ -12,12 +10,13 @@ export function bapiService(baseURL) {
             skipAuth: true
           })
         },
+
         logout: function() {
-          // Client-side only - no server endpoint needed
           localStorage.removeItem('loggedInUser')
           localStorage.removeItem('refreshToken')
           return Promise.resolve()
         },
+
         refresh: function() {
           const refreshToken = localStorage.getItem('refreshToken')
           return this.fetch('bapi', '/user/refresh', {
@@ -26,6 +25,7 @@ export function bapiService(baseURL) {
             skipAuth: true
           })
         },
+
         register: function(userData) {
           return this.fetch('bapi', '/user/signup', {
             method: 'POST',
@@ -33,6 +33,7 @@ export function bapiService(baseURL) {
             skipAuth: true
           })
         },
+
         resetPassword: function(email) {
           return this.fetch('bapi', '/user/password/forgot', {
             method: 'POST',
@@ -40,6 +41,7 @@ export function bapiService(baseURL) {
             skipAuth: true
           })
         },
+
         verifyEmail: function(token) {
           return this.fetch('bapi', '/user/email/verify', {
             method: 'POST',
@@ -48,33 +50,38 @@ export function bapiService(baseURL) {
           })
         }
       },
+
       paper: {
         save: function(id, data) {
-          // Cross-calling logic: save -> get -> edit or add
           return this.paper.get(id)
-            .then(exists => exists 
+            .then(exists => exists
               ? this.paper.edit(id, data)
               : this.paper.add(id, data)
             )
         },
+
         list: function() {
           return this.fetch('bapi', '/user/papers')
         },
+
         get: function(id) {
           return this.fetch('bapi', `/paper/${id}`)
         },
+
         edit: function(id, data) {
           return this.fetch('bapi', `/paper/${id}`, {
             method: 'PATCH',
             body: data
           })
         },
+
         add: function(id, data) {
           return this.fetch('bapi', '/user/papers', {
             method: 'POST',
             body: data
           })
         },
+
         checkExists: function(url) {
           return this.fetch('bapi', '/user/saved-paper/exists', {
             method: 'POST',
@@ -82,28 +89,33 @@ export function bapiService(baseURL) {
           })
         }
       },
+
       tags: {
         list: function() {
           return this.fetch('bapi', '/user/tags')
         },
+
         create: function(tag) {
           return this.fetch('bapi', '/user/tags', {
             method: 'POST',
             body: tag
           })
         },
+
         update: function(id, updates) {
           return this.fetch('bapi', `/tags/${id}`, {
             method: 'PATCH',
             body: updates
           })
         },
+
         delete: function(id) {
           return this.fetch('bapi', `/tags/${id}`, {
             method: 'DELETE'
           })
         }
       },
+
       preferences: {
         update: function(type, prefs) {
           return this.fetch('bapi', `/user/preferences/${type}`, {
@@ -112,34 +124,40 @@ export function bapiService(baseURL) {
           })
         }
       },
+
       assets: {
-        getSignedUrl: function(paperId, assetKey) {
-          return this.fetch('bapi', `/paper/${paperId}/assets/${assetKey}/signed-url`)
+        getSignedUrl: function(paperId, key) {
+          return this.fetch('bapi', `/paper/${paperId}/assets/${key}/signed-url`)
         }
       },
+
       rtc: {
         generateToken: function(paperId) {
           return this.fetch('bapi', `/paper/${paperId}/call/token`, {
             method: 'POST'
           })
         },
+
         getTwilioToken: function(sessionId) {
           return this.fetch('bapi', `/paper/${sessionId}/call/twilio`, {
             method: 'POST'
           })
         },
+
         getOpentokToken: function(sessionId) {
           return this.fetch('bapi', `/paper/${sessionId}/call/opentok`, {
             method: 'POST'
           })
         }
       },
+
       test: {
         slowOperation: function() {
           return this.fetch('bapi', '/test/slow')
         }
       }
     },
+
     services: {
       bapi: {
         base: {
@@ -151,6 +169,4 @@ export function bapiService(baseURL) {
       }
     }
   }
-  
-  return config
 }

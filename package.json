@@ -4,7 +4,7 @@
   "description": "HttpBehavior for Polymer 1.x with unified auth and HTTP handling",
   "type": "module",
   "scripts": {
-    "test": "NODE_ENV=test node --test test/*.test.js"
+    "test": "NODE_ENV=test node --test test/**/*.test.js"
   },
   "devDependencies": {
     "express": "^5.1.0",

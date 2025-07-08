@@ -1,15 +1,17 @@
+import { AuthError } from './errors/auth.js';
+
 /**
- * HttpBehavior - Unified auth and HTTP service layer for Polymer 1.x
- * 
+ * HttpBehavior - External configuration-based auth and HTTP service layer for Polymer 1.x
+ *
  * Provides:
  * - Automatic auth header injection
- * - Token refresh with race condition prevention  
+ * - Token refresh with race condition prevention
  * - Contextual API pattern: api(this).domain.method()
  * - Loading/error state management
  * - Event compatibility with existing auth components
- * - External configuration support via apiConfig property
- * 
- * External Configuration (recommended):
+ * - External configuration via apiConfig property (required)
+ *
+ * External Configuration (required):
  * behavior.apiConfig = {
  *   env: 'development',
  *   actions: {
@@ -28,12 +30,8 @@
  *     }
  *   }
  * }
- * 
+ *
  * Usage: api(component).auth.login({ email: 'user@example.com', password: 'pass' })
- * 
- * Legacy Configuration:
- * The behavior also supports legacy `services` property for backward compatibility.
- * Statics are accessed via Polymer data binding: [[services.serviceName.statics.socket]]
  */
 globalThis.HttpBehavior = {
   properties: {
@@ -43,12 +41,6 @@ globalThis.HttpBehavior = {
       observer: '_apiConfigChanged'
     },
 
-    // Service configuration object (internal)
-    services: {
-      type: Object,
-      value: function() { return {}; },
-      observer: '_servicesChanged'
-    },
 
     // User authentication state
     loggedInUser: {
@@ -67,55 +59,172 @@ globalThis.HttpBehavior = {
 
   attached: function() {
     this._initializeAuth();
-    // API building happens via _servicesChanged observer
+    // API building happens via _apiConfigChanged observer
   },
 
   _apiConfigChanged: function(apiConfig) {
-    if (apiConfig && apiConfig.actions && apiConfig.services) {
-      // Transform external config into internal services format and build API
-      this._externalConfig = apiConfig;
-      this._buildExternalApi();
+    if (apiConfig) {
+      // Validate configuration (even if properties are missing)
+      const validation = this._validateConfiguration(apiConfig);
+
+      if (validation.errors.length > 0) {
+        console.error('HttpBehavior Configuration Errors:', validation.errors);
+        // In development, throw error. In production, log and continue with degraded functionality
+        if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
+          throw new AuthError({
+            code: 'INVALID_CONFIGURATION',
+            message: 'Configuration validation failed',
+            status: 500,
+            retry: false
+          });
+        }
+      }
+
+      if (validation.warnings.length > 0) {
+        console.warn('HttpBehavior Configuration Warnings:', validation.warnings);
+      }
+
+      // Only build API if no validation errors
+      if (validation.errors.length === 0) {
+        // Transform external config into internal services format and build API
+        this._externalConfig = apiConfig;
+        this._buildExternalApi();
+      }
     }
   },
 
-  _servicesChanged: function(newServices) {
-    if (newServices && Object.keys(newServices).length > 0) {
-      this._buildApi();
+  _validateConfiguration: function(config) {
+    const errors = [];
+    const warnings = [];
+
+    // Validate required structure
+    if (!config.env) errors.push({
+      category: 'config',
+      code: 'MISSING_ENV',
+      message: 'Missing required "env" property',
+      suggestions: ['Add env property: { env: "development" }']
+    });
+
+    if (!config.actions) errors.push({
+      category: 'config',
+      code: 'MISSING_ACTIONS',
+      message: 'Missing required "actions" property',
+      suggestions: ['Add actions property with domain methods']
+    });
+
+    if (!config.services) errors.push({
+      category: 'config',
+      code: 'MISSING_SERVICES',
+      message: 'Missing required "services" property',
+      suggestions: ['Add services property with base URLs']
+    });
+
+    if (config.env && config.services) {
+      // Check service references from actions
+      const referencedServices = new Set();
+      if (config.actions) {
+        this._findServiceReferences(config.actions, referencedServices);
+      }
+
+      // Validate environment availability for referenced services
+      Object.keys(config.services).forEach(serviceName => {
+        const service = config.services[serviceName];
+        if (!service.base || !service.base[config.env]) {
+          warnings.push(`Environment '${config.env}' not configured for service '${serviceName}' - runtime errors will occur`);
+        }
+
+        // Warn about unused services
+        if (!referencedServices.has(serviceName)) {
+          warnings.push(`Service '${serviceName}' is defined but not used in actions`);
+        }
+      });
+    }
+
+    return { errors, warnings };
+  },
+
+  _findServiceReferences: function(obj, referencedServices) {
+    if (typeof obj === 'function') {
+      // Check function body for this.fetch('serviceName') calls
+      const funcStr = obj.toString();
+      const matches = funcStr.match(/this\.fetch\(['"`]([^'"`]+)['"`]/g);
+      if (matches) {
+        matches.forEach(match => {
+          const serviceName = match.match(/this\.fetch\(['"`]([^'"`]+)['"`]/)[1];
+          referencedServices.add(serviceName);
+        });
+      }
+    } else if (typeof obj === 'object' && obj !== null) {
+      Object.values(obj).forEach(value => {
+        this._findServiceReferences(value, referencedServices);
+      });
     }
   },
 
-  // Private helper to get base URL from first service with baseURL
-  _getBaseUrl: function() {
-    if (!this.services) return '';
-    const mainService = Object.values(this.services).find(s => s && s.baseURL);
-    return mainService?.baseURL || '';
+  _generateRequestId: function() {
+    return 'req-' + crypto.randomUUID().slice(0, 8);
   },
+
+  _createRequestContext: function(component, url, options = {}) {
+    return {
+      requestId: this._generateRequestId(),
+      timestamp: new Date().toISOString(),
+      component: component ? {
+        tagName: component.tagName || 'unknown',
+        id: component.id || 'unknown'
+      } : null,
+      request: {
+        url,
+        method: options.method || 'GET',
+        hasAuth: !options.skipAuth && !!this.loggedInUser?.tokens?.access
+      },
+      user: this.loggedInUser ? {
+        id: this.loggedInUser.id_user,
+        isAuthenticated: true
+      } : { isAuthenticated: false },
+      configuration: {
+        environment: this._externalConfig?.env,
+        availableServices: Object.keys(this._externalConfig?.services || {})
+      }
+    };
+  },
+
+  _extractErrorMessage: function(errorResponse) {
+    if (!errorResponse) return null;
+
+    // Handle different BAPI error response formats
+    if (errorResponse.message) return errorResponse.message;
+    if (errorResponse.errorMessage) return errorResponse.errorMessage;
+    if (Array.isArray(errorResponse.message)) return errorResponse.message.join(', ');
+
+    return null;
+  },
+
+  _createHttpError: function(response, context, error) {
+    const status = response.status;
+
+    // Use AuthError for all HTTP errors
+    const authError = AuthError.fromHTTP(response, error);
+
+    // Add response property for test compatibility
+    authError.response = error;
+
+    return authError;
+  },
+
+
 
   // Public auth methods (replaces logged-in-user element)
-  
-  loginLocal: function(credentials) {
-    const baseUrl = this._getBaseUrl();
-    const url = `${baseUrl}/api/user/login/email`;
-    
-    return this._http.request.call(this, url, {
-      method: 'POST',
-      body: JSON.stringify(credentials),
-      skipAuth: true // Don't add auth headers to login request
-    })
-    .then(response => {
-      this._handleLoginSuccess(response, true); // true = user-initiated
-      return response;
-    });
-  },
+
 
   logout: function() {
     // Clear local state
     this.set('loggedInUser', null);
     window.localStorage.removeItem('loggedInUser');
-    
+
     // Fire event for compatibility
     this.fire('user-logged-out');
-    
+
     return Promise.resolve();
   },
 
@@ -155,16 +264,31 @@ globalThis.HttpBehavior = {
     this.set('api', function(component) {
       const api = {};
 
+      // Add behavior instance reference for external actions
+      api._getBehaviorInstance = function() {
+        return self;
+      };
+
       // Add fetch method for service multiplexing
       api.fetch = function(serviceName, path, options = {}) {
         const service = config.services[serviceName];
         if (!service) {
-          throw new Error(`Service '${serviceName}' not found in configuration`);
+          throw new AuthError({
+            code: 'SERVICE_NOT_FOUND',
+            message: `Service '${serviceName}' is not configured`,
+            status: 500,
+            retry: false
+          });
         }
 
         const baseUrls = service.base;
         if (!baseUrls || !baseUrls[config.env]) {
-          throw new Error(`Environment '${config.env}' not found for service '${serviceName}'`);
+          throw new AuthError({
+            code: 'ENVIRONMENT_NOT_FOUND',
+            message: `Environment '${config.env}' is not configured for service '${serviceName}'`,
+            status: 500,
+            retry: false
+          });
         }
 
         const baseUrl = baseUrls[config.env];
@@ -172,7 +296,7 @@ globalThis.HttpBehavior = {
 
         // Clone options to avoid mutating original
         const requestOptions = { ...options };
-        
+
         // Stringify JSON body if needed
         if (requestOptions.body && typeof requestOptions.body === 'object') {
           requestOptions.body = JSON.stringify(requestOptions.body);
@@ -184,8 +308,13 @@ globalThis.HttpBehavior = {
           component.set('lastError', null);
         }
 
-        return self._http.request.call(self, url, requestOptions)
+        return self._http.request.call(self, url, requestOptions, component)
           .then(response => {
+            // Handle login responses automatically
+            if (response && response.tokens && response.id_user) {
+              self._handleLoginSuccess(response, true);
+            }
+            
             if (component && component.set) {
               component.set('loading', false);
               component.set('lastResponse', response);
@@ -219,300 +348,63 @@ globalThis.HttpBehavior = {
     });
   },
 
-  _buildApi: function() {
-    if (!this.services) {
-      console.warn('HttpBehavior: services not configured');
-      return;
+
+  _addAuthHeaders: function(options) {
+    // Add auth headers unless skipped
+    if (!options.skipAuth) {
+      const user = this.loggedInUser;
+      if (user && user.tokens && user.tokens.access) {
+        options.headers = options.headers || {};
+        options.headers['Authorization'] = `Bearer ${user.tokens.access}`;
+      }
     }
 
-    // Find the main API service (first one with baseURL)
-    const mainService = Object.values(this.services).find(s => s && s.baseURL);
-    if (!mainService) {
-      console.warn('HttpBehavior: no service with baseURL found');
-      return;
+    // Add content-type for JSON bodies
+    if (options.body && typeof options.body === 'string') {
+      options.headers = options.headers || {};
+      options.headers['Content-Type'] = 'application/json';
+    }
+  },
+
+  _handleResponse: function(response) {
+    // Handle 204 No Content
+    if (response.status === 204) {
+      return null;
     }
 
-    const baseUrl = mainService.baseURL;
-    const http = this._http;
-    const self = this;
+    // Parse JSON response
+    if (response.ok) {
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        return response.json();
+      }
+      return response.text();
+    }
+    
+    // If not ok, let error handling take over
+    return response;
+  },
 
-    // Build API with contextual pattern
-    this.set('api', function(component) {
-      return {
-        auth: {
-          login: function(credentials) {
-            return self.loginLocal.call(self, credentials);
-          },
-          logout: function() {
-            return self.logout.call(self);
-          }
-        },
-
-        paper: {
-          save: function(data) {
-            component.set('loading', true);
-            component.set('lastError', null);
-            
-            return http.request.call(self, `${baseUrl}/api/user/papers/save`, {
-              method: 'POST',
-              body: JSON.stringify(data)
-            })
-            .then(response => {
-              component.set('loading', false);
-              component.set('lastResponse', response);
-              component.fire('response', { response });
-              component.fire('paper-saved', { detail: response });
-              return response;
-            })
-            .catch(error => {
-              component.set('loading', false);
-              component.set('lastError', error);
-              component.fire('error', { error });
-              throw error;
-            });
-          },
-
-          list: function() {
-            component.set('loading', true);
-            component.set('lastError', null);
-            
-            return http.request.call(self, `${baseUrl}/api/user/papers`)
-              .then(response => {
-                component.set('loading', false);
-                component.set('lastResponse', response);
-                component.fire('response', { response });
-                return response;
-              })
-              .catch(error => {
-                component.set('loading', false);
-                component.set('lastError', error);
-                component.fire('error', { error });
-                throw error;
-              });
-          },
-
-          checkExists: function(paperUrl) {
-            return http.request.call(self, `${baseUrl}/api/user/saved-paper/exists`, {
-              method: 'POST',
-              body: JSON.stringify({ url: paperUrl })
-            });
-          },
-
-          delete: function(paperId) {
-            component.set('loading', true);
-            component.set('lastError', null);
-            
-            return http.request.call(self, `${baseUrl}/api/papers/${paperId}`, {
-              method: 'DELETE'
-            })
-            .then(response => {
-              component.set('loading', false);
-              component.set('lastResponse', response);
-              component.fire('response', { response });
-              component.fire('paper-deleted', { detail: { paperId } });
-              return response;
-            })
-            .catch(error => {
-              component.set('loading', false);
-              component.set('lastError', error);
-              component.fire('error', { error });
-              throw error;
-            });
-          }
-        },
-
-        tags: {
-          list: function() {
-            component.set('loading', true);
-            component.set('lastError', null);
-            
-            return http.request.call(self, `${baseUrl}/api/user/tags`)
-              .then(response => {
-                component.set('loading', false);
-                component.set('lastResponse', response);
-                component.fire('response', { response });
-                return response;
-              })
-              .catch(error => {
-                component.set('loading', false);
-                component.set('lastError', error);
-                component.fire('error', { error });
-                throw error;
-              });
-          },
-
-          create: function(tag) {
-            component.set('loading', true);
-            component.set('lastError', null);
-            
-            return http.request.call(self, `${baseUrl}/api/user/tags`, {
-              method: 'POST',
-              body: JSON.stringify(tag)
-            })
-            .then(response => {
-              component.set('loading', false);
-              component.set('lastResponse', response);
-              component.fire('response', { response });
-              return response;
-            })
-            .catch(error => {
-              component.set('loading', false);
-              component.set('lastError', error);
-              component.fire('error', { error });
-              throw error;
-            });
-          },
-
-          update: function(tagId, updates) {
-            component.set('loading', true);
-            component.set('lastError', null);
-            
-            return http.request.call(self, `${baseUrl}/api/tags/${tagId}`, {
-              method: 'PUT',
-              body: JSON.stringify(updates)
-            })
-            .then(response => {
-              component.set('loading', false);
-              component.set('lastResponse', response);
-              component.fire('response', { response });
-              return response;
-            })
-            .catch(error => {
-              component.set('loading', false);
-              component.set('lastError', error);
-              component.fire('error', { error });
-              throw error;
-            });
-          },
-
-          delete: function(tagId) {
-            component.set('loading', true);
-            component.set('lastError', null);
-            
-            return http.request.call(self, `${baseUrl}/api/tags/${tagId}`, {
-              method: 'DELETE'
-            })
-            .then(response => {
-              component.set('loading', false);
-              component.set('lastResponse', response);
-              component.fire('response', { response });
-              return response;
-            })
-            .catch(error => {
-              component.set('loading', false);
-              component.set('lastError', error);
-              component.fire('error', { error });
-              throw error;
-            });
-          }
-        },
-
-        assets: {
-          getSignedUrl: function(paperId, assetKey) {
-            component.set('loading', true);
-            component.set('lastError', null);
-            
-            return http.request.call(self, `${baseUrl}/api/paper/${paperId}/assets/${assetKey}/signed-url`)
-              .then(response => {
-                component.set('loading', false);
-                component.set('lastResponse', response);
-                component.fire('response', { response });
-                return response;
-              })
-              .catch(error => {
-                component.set('loading', false);
-                component.set('lastError', error);
-                component.fire('error', { error });
-                throw error;
-              });
-          }
-        },
-
-        preferences: {
-          get: function() {
-            component.set('loading', true);
-            component.set('lastError', null);
-            
-            return http.request.call(self, `${baseUrl}/api/user/preferences`)
-              .then(response => {
-                component.set('loading', false);
-                component.set('lastResponse', response);
-                component.fire('response', { response });
-                return response;
-              })
-              .catch(error => {
-                component.set('loading', false);
-                component.set('lastError', error);
-                component.fire('error', { error });
-                throw error;
-              });
-          },
-
-          update: function(preferences) {
-            component.set('loading', true);
-            component.set('lastError', null);
-            
-            return http.request.call(self, `${baseUrl}/api/user/preferences`, {
-              method: 'PUT',
-              body: JSON.stringify(preferences)
-            })
-            .then(response => {
-              component.set('loading', false);
-              component.set('lastResponse', response);
-              component.fire('response', { response });
-              return response;
-            })
-            .catch(error => {
-              component.set('loading', false);
-              component.set('lastError', error);
-              component.fire('error', { error });
-              throw error;
-            });
-          }
-        },
-
-        rtc: {
-          generateToken: function(paperId) {
-            component.set('loading', true);
-            component.set('lastError', null);
-            
-            return http.request.call(self, `${baseUrl}/api/paper/${paperId}/rtc/token`, {
-              method: 'POST'
-            })
-            .then(response => {
-                component.set('loading', false);
-                component.set('lastResponse', response);
-                component.fire('response', { response });
-                return response;
-              })
-              .catch(error => {
-                component.set('loading', false);
-                component.set('lastError', error);
-                component.fire('error', { error });
-                throw error;
-              });
-          }
-        }
-      };
-    });
+  _handleError: function(response, context) {
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json().then(err => {
+        throw this._createHttpError(response, context, err);
+      });
+    } else {
+      return response.text().then(text => {
+        throw this._createHttpError(response, context, { message: text });
+      });
+    }
   },
 
   _http: {
-    request: function(url, options = {}) {
-      // Add auth headers unless skipped
-      if (!options.skipAuth) {
-        const user = this.loggedInUser;
-        if (user && user.tokens && user.tokens.access) {
-          options.headers = options.headers || {};
-          options.headers['Authorization'] = `Bearer ${user.tokens.access}`;
-        }
-      }
+    request: function(url, options = {}, component = null) {
+      // Create request context for better error messages
+      const context = this._createRequestContext(component, url, options);
 
-      // Add content-type for JSON bodies
-      if (options.body && typeof options.body === 'string') {
-        options.headers = options.headers || {};
-        options.headers['Content-Type'] = 'application/json';
-      }
+      // Add authentication and content headers
+      this._addAuthHeaders(options);
 
       // Make request
       return fetch(url, options)
@@ -530,35 +422,12 @@ globalThis.HttpBehavior = {
           return response;
         })
         .then(response => {
-          // Handle 204 No Content
-          if (response.status === 204) {
-            return null;
-          }
-          
-          // Parse JSON response
-          if (response.ok) {
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-              return response.json();
-            }
-            return response.text();
+          // Handle successful responses
+          if (response.ok || response.status === 204) {
+            return this._handleResponse(response);
           } else {
-            // Handle error responses - clone response to read body twice if needed
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-              return response.json().then(err => {
-                const error = new Error(err.message || err.errorMessage || `HTTP ${response.status}`);
-                error.status = response.status;
-                error.response = err;
-                throw error;
-              });
-            } else {
-              return response.text().then(text => {
-                const error = new Error(text || `HTTP ${response.status}`);
-                error.status = response.status;
-                throw error;
-              });
-            }
+            // Handle error responses
+            return this._handleError(response, context);
           }
         });
     }
@@ -575,8 +444,20 @@ globalThis.HttpBehavior = {
       return Promise.reject(new Error('No refresh token available'));
     }
 
-    const baseUrl = this._getBaseUrl();
-    const url = `${baseUrl}/api/user/refresh`;
+    // Get base URL from external configuration
+    if (!this._externalConfig || !this._externalConfig.services) {
+      return Promise.reject(new Error('External configuration required for token refresh'));
+    }
+
+    // Use the first available service
+    const serviceName = Object.keys(this._externalConfig.services)[0];
+    const service = this._externalConfig.services[serviceName];
+    if (!service || !service.base || !service.base[this._externalConfig.env]) {
+      return Promise.reject(new Error('Service configuration not found for token refresh'));
+    }
+
+    const baseUrl = service.base[this._externalConfig.env];
+    const url = `${baseUrl}/user/refresh`;
 
     this._refreshPromise = fetch(url, {
       method: 'POST',
@@ -585,7 +466,17 @@ globalThis.HttpBehavior = {
     })
     .then(response => {
       if (!response.ok) {
-        throw new Error(`Refresh failed: ${response.status}`);
+        return response.json().then(errorData => {
+          const context = this._createRequestContext(null, url, { method: 'POST' });
+          throw AuthError.TokenRefreshFailed({
+            status: response.status,
+            response: errorData
+          });
+        }).catch(() => {
+          // If JSON parsing fails, create error with just status
+          const context = this._createRequestContext(null, url, { method: 'POST' });
+          throw AuthError.TokenRefreshFailed({ status: response.status });
+        });
       }
       return response.json();
     })
@@ -622,13 +513,13 @@ globalThis.HttpBehavior = {
 
     // Store in localStorage first
     this._storeUser(user);
-    
+
     // Update component state
     this.set('loggedInUser', user);
-    
+
     // Fire events
     this.fire('login-success', { detail: user });
-    
+
     if (isUserInitiated) {
       this.fire('login-request-success', { detail: user });
     }
@@ -645,7 +536,7 @@ globalThis.HttpBehavior = {
       email: user.email,
       network: user.network
     };
-    
+
     window.localStorage.setItem('loggedInUser', JSON.stringify(storageData));
   },
 

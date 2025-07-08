@@ -7,27 +7,31 @@ export function createTestEnvironment() {
     runScripts: 'outside-only',
     pretendToBeVisual: true
   })
-  
+
   const window = dom.window
-  
+
   // Set up globals needed by Polymer
   global.window = window
   global.document = window.document
-  
+
   // Mock localStorage with proper implementation
   delete window.localStorage
   window.localStorage = createMockLocalStorage()
-  
+
+  // Make localStorage available globally for tests
+  global.localStorage = window.localStorage
+
   // Mock Polymer.Base
   window.Polymer = {
     Base: createPolymerBase()
   }
-  
+
   // Return cleanup function
   return () => {
     window.close()
     delete global.window
     delete global.document
+    delete global.localStorage
   }
 }
 
@@ -35,17 +39,17 @@ export function createTestEnvironment() {
 export function createMockLocalStorage() {
   const storage = {
     _data: {},
-    getItem(key) { 
-      return this._data[key] || null 
+    getItem(key) {
+      return this._data[key] || null
     },
-    setItem(key, value) { 
+    setItem(key, value) {
       this._data[key] = String(value)
     },
-    removeItem(key) { 
-      delete this._data[key] 
+    removeItem(key) {
+      delete this._data[key]
     },
-    clear() { 
-      this._data = {} 
+    clear() {
+      this._data = {}
     }
   }
   return storage
@@ -63,20 +67,20 @@ export function createPolymerBase() {
       }
       obj[parts[parts.length - 1]] = value
     },
-    
+
     fire(eventName, detail) {
       this._firedEvents = this._firedEvents || []
       this._firedEvents.push({ name: eventName, detail })
     },
-    
+
     async(fn, delay) {
       return setTimeout(() => fn.call(this), delay || 0)
     },
-    
+
     cancelAsync(handle) {
       if (handle) clearTimeout(handle)
     },
-    
+
     getFiredEvents(eventName) {
       if (!eventName) return this._firedEvents || []
       return (this._firedEvents || []).filter(e => e.name === eventName)
@@ -95,7 +99,7 @@ export function createBehaviorInstance(behavior, initialProps = {}) {
       }
     })
   }
-  
+
   return instance
 }
 
@@ -115,41 +119,3 @@ export function createMockComponent() {
   }
 }
 
-// Common test setup pattern used across all test files
-export function createTestSuite(testModule, options = {}) {
-  const { buildApi = false, setupHook = null } = options
-  
-  let cleanup
-  let server
-  let behavior
-  
-  testModule.before(async () => {
-    cleanup = createTestEnvironment()
-    server = (await import('./server/index.js')).createTestServer()
-    await server.start()
-    
-    if (setupHook) {
-      await setupHook(server)
-    }
-  })
-  
-  testModule.after(async () => {
-    await server?.stop()
-    cleanup?.()
-  })
-  
-  testModule.beforeEach(() => {
-    window.localStorage.clear()
-    behavior = createBehaviorInstance(globalThis.HttpBehavior)
-    behavior.services = { bapi: { baseURL: server.host } }
-    
-    if (buildApi) {
-      behavior._buildApi()
-    }
-  })
-  
-  return {
-    getBehavior: () => behavior,
-    getServer: () => server
-  }
-}

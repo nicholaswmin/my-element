@@ -1,26 +1,26 @@
 import test from 'node:test'
-import { createTestEnvironment, createBehaviorInstance, createMockComponent } from './util/setup.js'
-import { createTestServer } from './util/server/index.js'
+import { createTestEnvironment, createBehaviorInstance, createMockComponent } from '../util/setup.js'
+import { createTestServer } from '../util/server/index.js'
 
-import '../http-behavior.js'
+import '../../http-behavior.js'
 
 test('HttpBehavior URL building via external configuration', async t => {
   let cleanup
   let server
-  
+
   let behavior
-  
+
   t.before(async () => {
     cleanup = createTestEnvironment()
     server = createTestServer(); await server.start()
-    
+
   })
-  
+
   t.after(async () => {
     await server?.stop()
     cleanup?.()
   })
-  
+
   t.beforeEach(() => {
     window.localStorage.clear()
     behavior = createBehaviorInstance(globalThis.HttpBehavior)
@@ -58,7 +58,7 @@ test('HttpBehavior URL building via external configuration', async t => {
 
       behavior.apiConfig = config;
       const component = createMockComponent();
-      
+
       // Mock global fetch to capture URLs
       const capturedUrls = [];
       global.fetch = async (url, options) => {
@@ -95,7 +95,7 @@ test('HttpBehavior URL building via external configuration', async t => {
 
       behavior.apiConfig = config;
       const component = createMockComponent();
-      
+
       // Mock global fetch to capture URLs
       const capturedUrls = [];
       global.fetch = async (url, options) => {
@@ -129,7 +129,7 @@ test('HttpBehavior URL building via external configuration', async t => {
 
       behavior.apiConfig = config;
       const component = createMockComponent();
-      
+
       // Mock global fetch to capture URLs
       const capturedUrls = [];
       global.fetch = async (url, options) => {
@@ -168,7 +168,7 @@ test('HttpBehavior URL building via external configuration', async t => {
 
       behavior.apiConfig = config;
       const component = createMockComponent();
-      
+
       // Mock global fetch to capture URLs
       const capturedUrls = [];
       global.fetch = async (url, options) => {

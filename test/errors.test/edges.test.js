@@ -1,19 +1,20 @@
 import test from 'node:test'
-import { createTestEnvironment, createBehaviorInstance, createMockComponent } from './util/setup.js'
-import { createTestServer } from './util/server/index.js'
+import { createTestEnvironment, createBehaviorInstance, createMockComponent } from '../util/setup.js'
+import { createTestServer } from '../util/server/index.js'
+import { bapiService } from '../util/services/bapi.js'
 
-import '../http-behavior.js'
+import '../../http-behavior.js'
 
 test('HttpBehavior edge cases and boundary scenarios', async t => {
   let cleanup
   let server
-  
+
   let behavior
 
   t.before(async () => {
     cleanup = createTestEnvironment()
     server = createTestServer(); await server.start()
-    
+
   })
 
   t.after(async () => {
@@ -24,12 +25,13 @@ test('HttpBehavior edge cases and boundary scenarios', async t => {
   t.beforeEach(() => {
     window.localStorage.clear()
     behavior = createBehaviorInstance(globalThis.HttpBehavior)
-    behavior.services = { bapi: { baseURL: server.host } }
+    const config = bapiService(server.host + '/api')
+    behavior.apiConfig = config
+    behavior._apiConfigChanged(config)
     behavior.loggedInUser = {
       id_user: '123',
       tokens: { access: server.createValidToken() }
     }
-    behavior._buildApi()
   })
 
   await t.test('edge cases: concurrent request handling', async t => {
@@ -37,19 +39,19 @@ test('HttpBehavior edge cases and boundary scenarios', async t => {
       const comp1 = createMockComponent()
       const comp2 = createMockComponent()
       const comp3 = createMockComponent()
-      
+
       // Start concurrent requests from different components
       const promise1 = behavior.api(comp1).paper.save({ id_session: 'paper-1' })
       const promise2 = behavior.api(comp2).tags.list()
       const promise3 = behavior.api(comp3).paper.list()
-      
+
       // All should be loading
       t.assert.strictEqual(comp1.loading, true, 'Component 1 should be loading')
       t.assert.strictEqual(comp2.loading, true, 'Component 2 should be loading')
       t.assert.strictEqual(comp3.loading, true, 'Component 3 should be loading')
-      
+
       await Promise.all([promise1, promise2, promise3])
-      
+
       // All should complete independently
       t.assert.strictEqual(comp1.loading, false, 'Component 1 should finish loading')
       t.assert.strictEqual(comp2.loading, false, 'Component 2 should finish loading')
@@ -58,14 +60,14 @@ test('HttpBehavior edge cases and boundary scenarios', async t => {
 
     t.todo('edge case: rapid sequential requests from same component', async t => {
       const component = createMockComponent()
-      
+
       // Make rapid sequential requests
       const promise1 = behavior.api(component).tags.list()
       const promise2 = behavior.api(component).paper.list()
-      
+
       // Second request should cancel first request's component state
       await Promise.all([promise1, promise2])
-      
+
       t.assert.strictEqual(component.loading, false, 'Should finish loading')
       t.assert.ok(Array.isArray(component.lastResponse), 'Should have array response from final request')
     })
@@ -74,20 +76,20 @@ test('HttpBehavior edge cases and boundary scenarios', async t => {
   await t.test('edge cases: boundary conditions', async t => {
     t.todo('edge case: empty request body handling', async t => {
       const component = createMockComponent()
-      
+
       // Test behavior with empty/null data
       await t.assert.rejects(
         () => behavior.api(component).paper.save({}),
         error => error.message.includes('validation'),
         'Should handle empty data gracefully'
       )
-      
+
       t.assert.ok(component.lastError, 'Should set error on component')
     })
 
     t.todo('edge case: malformed response handling', async t => {
       const component = createMockComponent()
-      
+
       // Test with endpoint that returns non-JSON
       await t.assert.rejects(
         () => behavior.api(component).test.malformed(),
@@ -101,10 +103,10 @@ test('HttpBehavior edge cases and boundary scenarios', async t => {
   await t.test('edge cases: service function behavior', async t => {
     t.todo('edge case: service function availability', async t => {
       const component = createMockComponent()
-      
+
       // Test service function exists and works
       t.assert.strictEqual(typeof behavior.service, 'function', 'service should be function')
-      
+
       const service = behavior.api(component)
       t.assert.ok(service, 'service(component) should return service object')
       t.assert.ok(service.paper, 'Should have paper domain')

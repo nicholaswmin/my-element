@@ -87,10 +87,15 @@ BAPI provides the following authentication-related endpoints:
    ```
 
 **Important Notes:**
-- The CLAUDE.md incorrectly states that signup uses a `name` field. The actual implementation requires `firstName` and optional `lastName`
+- Signup requires `firstName` (required) and `lastName` (optional) fields, not a single `name` field
 - Password must be at least 6 characters
 - Email is converted to lowercase and trimmed
 - When `SKIP_EMAIL_VERIFICATION=true`, `email_verified` is set to true immediately
+
+**HttpBehavior Integration:**
+- `register()` method available via external configuration
+- Uses `POST /user/signup` endpoint through service multiplexing
+- Automatic JSON body serialization and error handling
 
 ### 2. Login - POST /api/user/login/email
 
@@ -129,6 +134,11 @@ Same structure as signup response
 - Email is converted to lowercase and trimmed
 - User must be enabled (`user.enabled = true`)
 - Password is verified using bcrypt
+
+**HttpBehavior Integration:**
+- `login()` method available via external configuration  
+- Uses `POST /user/login/email` endpoint through service multiplexing
+- Automatic token storage in localStorage and component state management
 
 ### 3. Refresh Token - POST /api/user/refresh
 
@@ -182,12 +192,22 @@ Same structure as signup/login response with new tokens
 - Refresh tokens expire after 6 months
 - Returns 201 status code (NestJS default for POST endpoints)
 
+**HttpBehavior Integration:**
+- Automatic token refresh on 401 responses during authenticated requests
+- Race condition prevention for concurrent refresh attempts
+- Updates localStorage and component state with new tokens
+
 ### 4. Logout
 
 **No server-side logout endpoint exists**. Logout is handled entirely client-side by:
 - Clearing tokens from localStorage
 - Resetting application state
 - No server invalidation of tokens (they expire naturally)
+
+**HttpBehavior Integration:**
+- `logout()` method available via external configuration
+- Automatically clears localStorage and component state
+- Fires `user-logged-out` event for component lifecycle
 
 ## Password Reset
 
