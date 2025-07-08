@@ -101,19 +101,6 @@ test('Authorization headers and token validation', async t => {
       t.assert.deepStrictEqual(result, { data: 'success' })
     })
 
-    await t.test('skipAuth bypasses authorization entirely', async t => {
-      const validToken = server.createValidToken()
-      behavior.loggedInUser = { tokens: { access: validToken } }
-
-      // Should succeed without auth header when skipAuth: true
-      const result = await behavior._http.request.call(behavior, `${baseURL}/api/user/login/email`, {
-        method: 'POST',
-        body: JSON.stringify({ email: 'test@example.com', password: 'password' }),
-        skipAuth: true
-      })
-
-      t.assert.ok(result.id_user, 'Should succeed with skipAuth despite having token')
-    })
   })
 
   await t.test('server-side endpoint validation', async t => {

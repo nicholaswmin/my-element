@@ -176,7 +176,7 @@ globalThis.HttpBehavior = {
       request: {
         url,
         method: options.method || 'GET',
-        hasAuth: !options.skipAuth && !!this.loggedInUser?.tokens?.access
+        hasAuth: !!this.loggedInUser?.tokens?.access
       },
       user: this.loggedInUser ? {
         id: this.loggedInUser.id_user,
@@ -350,13 +350,11 @@ globalThis.HttpBehavior = {
 
 
   _addAuthHeaders: function(options) {
-    // Add auth headers unless skipped
-    if (!options.skipAuth) {
-      const user = this.loggedInUser;
-      if (user && user.tokens && user.tokens.access) {
-        options.headers = options.headers || {};
-        options.headers['Authorization'] = `Bearer ${user.tokens.access}`;
-      }
+    // Add auth headers
+    const user = this.loggedInUser;
+    if (user && user.tokens && user.tokens.access) {
+      options.headers = options.headers || {};
+      options.headers['Authorization'] = `Bearer ${user.tokens.access}`;
     }
 
     // Add content-type for JSON bodies
@@ -410,7 +408,7 @@ globalThis.HttpBehavior = {
       return fetch(url, options)
         .then(response => {
           // Handle 401 - token expired
-          if (response.status === 401 && !options.skipAuth) {
+          if (response.status === 401) {
             return this._refreshToken.call(this)
               .then(() => {
                 // Retry with new token

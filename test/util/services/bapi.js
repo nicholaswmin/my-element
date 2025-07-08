@@ -6,8 +6,7 @@ export function bapiService(baseURL) {
         login: function(credentials) {
           return this.fetch('bapi', '/user/login/email', {
             method: 'POST',
-            body: credentials,
-            skipAuth: true
+            body: credentials
           })
         },
 
@@ -21,32 +20,28 @@ export function bapiService(baseURL) {
           const refreshToken = localStorage.getItem('refreshToken')
           return this.fetch('bapi', '/user/refresh', {
             method: 'POST',
-            body: { refreshToken },
-            skipAuth: true
+            body: { refreshToken }
           })
         },
 
         register: function(userData) {
           return this.fetch('bapi', '/user/signup', {
             method: 'POST',
-            body: userData,
-            skipAuth: true
+            body: userData
           })
         },
 
         resetPassword: function(email) {
           return this.fetch('bapi', '/user/password/forgot', {
             method: 'POST',
-            body: { email },
-            skipAuth: true
+            body: { email }
           })
         },
 
         verifyEmail: function(token) {
           return this.fetch('bapi', '/user/email/verify', {
             method: 'POST',
-            body: { token },
-            skipAuth: true
+            body: { token }
           })
         }
       },

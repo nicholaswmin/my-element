@@ -15,14 +15,14 @@ Configurable HTTP service layer for [Polymer 1.x][polymer]
 ## Usage
 
 ```javascript
-behavior.apiConfig = {
+behavior.api = {
   env: 'development',
 
   actions: {
     auth: {
       login: function(body) {
         return this.fetch('bapi', '/user/login/email', {
-          method: 'POST', body, skipAuth: true
+          method: 'POST', body
         });
       }
     },
@@ -30,7 +30,7 @@ behavior.apiConfig = {
     user: {
       save: function(data) {
         return this.fetch('bapi', '/user', {
-          method: 'POST', body: data, skipAuth: true
+          method: 'POST', body: data
         })  
       },
       

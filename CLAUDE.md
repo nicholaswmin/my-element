@@ -46,8 +46,7 @@ apiConfig: {
       login: function(credentials) {
         return this.fetch('bapi', '/user/login/email', {
           method: 'POST',
-          body: credentials,
-          skipAuth: true
+          body: credentials
         });
       },
       // Other auth methods...
