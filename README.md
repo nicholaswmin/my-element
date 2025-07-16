@@ -1,44 +1,28 @@
-# `<my-element>`
+![test](https://github.com/nicholaswmin/my-element/actions/workflows/test.yml/badge.svg)
 
 minimal [Polymer 1.x][poly-docs] element.
-
-## Usage
 
 ```html
 <my-element></my-element>
 ```
 
-## Development
-
-Install dependencies:
+## Install
 
 ```bash
-npm install
+npm i
 ```
 
-Run tests:
-
-```bash
-npm test
-```
-
-Note: tests run via [Puppeteer][pptr-docs]
-
-Run demo:
+## Demo
 
 ```bash
 npm run demo
 ```
 
-Then visit: http://localhost:3001
+## Test
 
-### Test on GitHub
-
-To set up CI testing:
-
-- Fork this repository
-- Push changes to trigger workflow
-- Tests run automatically on PRs
+```bash
+npm t
+```
 
 ## License
 

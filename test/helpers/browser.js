@@ -11,7 +11,8 @@ export const page = async (htmlFile) => {
     headless: 'new',
     args: [
       '--disable-web-security',
-      '--disable-features=IsolateOrigins'
+      '--disable-features=IsolateOrigins',
+      '--no-sandbox'
     ]
   })
   const page = await browser.newPage()
