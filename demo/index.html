@@ -4,14 +4,25 @@
   <title>My Element Demo</title>
   <script src="bower_components/webcomponentsjs/webcomponents-lite.js"></script>
   <link rel="import" href="bower_components/polymer/polymer.html">
-  <link rel="import" href="bower_components/paper-button/paper-button.html">
+  <link rel="import" href="../my-element.html">
+  <style>
+    article {
+      max-width: 100ch;
+      margin: 4em auto;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      font: 14px system-ui, sans-serif;
+      
+      h1 { font-size: 24px; margin: 0 0 8px }
+      p { color: #666; margin: 0 0 16px }
+    }
+  </style>
 </head>
 <body>
-  <h1>My Element Demo</h1>
-  <paper-button raised>Click Me</paper-button>
-  <script src="../my-element.js"></script>
-</body>
-</html>
-
+  <article>
+    <h1>&lt;my-element/&gt;</h1>
+    <p>minimal Polymer 1.x demo</p>
+    <my-element></my-element>
+  </article>
 </body>
 </html>

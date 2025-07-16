@@ -1,33 +1,48 @@
-# My Element
+# `<my-element>`
 
-A minimal Polymer element starter template.
+minimal [Polymer 1.x][poly-docs] element.
 
 ## Usage
 
-```javascript
-MyElement.init()
+```html
+<my-element></my-element>
 ```
 
 ## Development
 
 Install dependencies:
+
 ```bash
 npm install
-cd demo && npx bower install
 ```
 
 Run tests:
+
 ```bash
 npm test
 ```
 
+Note: tests run via [Puppeteer][pptr-docs]
+
 Run demo:
+
 ```bash
 npm run demo
 ```
 
-The demo will be available at http://localhost:3001
+Then visit: http://localhost:3001
+
+### Test on GitHub
+
+To set up CI testing:
+
+- Fork this repository
+- Push changes to trigger workflow
+- Tests run automatically on PRs
 
 ## License
 
 MIT
+
+[poly-docs]: https://polymer-library.polymer-project.org/1.0/
+[pptr-docs]: https://pptr.dev

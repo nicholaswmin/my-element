@@ -1,16 +1,18 @@
 {
   "name": "my-element",
   "version": "1.0.0",
-  "description": "A minimal Polymer element starter",
+  "description": "starter Polymer 1.x element",
   "type": "module",
   "scripts": {
     "test": "NODE_ENV=test node --test test/**/*.test.js",
-    "demo": "PORT=3001 node demo/app.js"
+    "demo": "PORT=3001 node demo/app.js",
+    "postinstall": "cd demo && npx bower@1.8.14 install -q"
   },
   "devDependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "puppeteer": "^23.9.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   }
 }
