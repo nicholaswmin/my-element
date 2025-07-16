@@ -1,0 +1,10 @@
+{
+  "name": "my-element-demo",
+  "description": "Demo for my-element",
+  "private": true,
+  "dependencies": {
+    "polymer": "1.11.3",
+    "paper-button": "1.0.15",
+    "webcomponentsjs": "0.7.24"
+  }
+}

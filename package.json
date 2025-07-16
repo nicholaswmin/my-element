@@ -1,14 +1,14 @@
 {
-  "name": "poly-auth-behavior",
+  "name": "my-element",
   "version": "1.0.0",
-  "description": "HttpBehavior for Polymer 1.x with unified auth and HTTP handling",
+  "description": "A minimal Polymer element starter",
   "type": "module",
   "scripts": {
-    "test": "NODE_ENV=test node --test test/**/*.test.js"
+    "test": "NODE_ENV=test node --test test/**/*.test.js",
+    "demo": "PORT=3001 node demo/app.js"
   },
   "devDependencies": {
-    "express": "^5.1.0",
-    "jsdom": "^26.1.0"
+    "express": "^5.1.0"
   },
   "engines": {
     "node": ">=20.0.0"
